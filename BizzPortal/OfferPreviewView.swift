@@ -164,7 +164,7 @@ struct OfferPreviewHeader: View {
 
 struct OfferPreviewCard: View {
     let business: FirebaseBusiness
-    let offerData: OfferData
+    let offerData:  OfferData
     
     var body: some View {
         VStack(spacing: 20) {

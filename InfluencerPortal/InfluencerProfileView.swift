@@ -90,9 +90,9 @@ struct ProfileHeaderView: View {
                 .font(.subheadline)
                 .foregroundColor(.gray)
             
-            // Main Platform Badge
+            // Main Platform Badge - FIXED
             HStack(spacing: 12) {
-                InfluencerPlatformBadge(
+                InfluencerMainPlatformBadge(
                     platform: influencer.mainPlatform,
                     followers: influencer.displayFollowers
                 )
@@ -104,7 +104,8 @@ struct ProfileHeaderView: View {
     }
 }
 
-struct InfluencerPlatformBadge: View {
+// RENAMED to avoid conflict
+struct InfluencerMainPlatformBadge: View {
     let platform: String
     let followers: String
     
@@ -435,26 +436,26 @@ struct AccountDetailsSection: View {
                 .foregroundColor(.black)
             
             VStack(spacing: 12) {
-                DetailRow(
+                ProfileDetailRow(
                     label: "Member Since",
                     value: formatDate(influencer.joinedDate.dateValue()),
                     icon: "calendar"
                 )
                 
-                DetailRow(
+                ProfileDetailRow(
                     label: "Last Active",
                     value: formatRelativeDate(influencer.lastActive.dateValue()),
                     icon: "clock"
                 )
                 
-                DetailRow(
+                ProfileDetailRow(
                     label: "Account Status",
                     value: influencer.isActive ? "Active" : "Inactive",
                     icon: "circle.fill",
                     valueColor: influencer.isActive ? .green : .red
                 )
                 
-                DetailRow(
+                ProfileDetailRow(
                     label: "Verification",
                     value: influencer.isVerified ? "Verified" : "Not Verified",
                     icon: "checkmark.seal",
@@ -481,7 +482,7 @@ struct AccountDetailsSection: View {
     }
 }
 
-struct DetailRow: View {
+struct ProfileDetailRow: View {
     let label: String
     let value: String
     let icon: String

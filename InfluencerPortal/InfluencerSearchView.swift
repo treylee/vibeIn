@@ -62,7 +62,7 @@ struct InfluencerSearchView: View {
                         ScrollView {
                             LazyVStack(spacing: 16) {
                                 ForEach(filteredOffers) { offer in
-                                    NavigationLink(destination: OfferDetailView(offer: offer)) {
+                                    NavigationLink(destination: InfluencerRestaurantDetailView(offer: offer)) {
                                         InfluencerOfferCard(offer: offer)
                                     }
                                 }
