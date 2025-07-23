@@ -62,8 +62,8 @@ struct InfluencerSearchView: View {
                         ScrollView {
                             LazyVStack(spacing: 16) {
                                 ForEach(filteredOffers) { offer in
-                                    NavigationLink(destination: RestaurantDetailView(offer: offer)) {
-                                        SearchResultCard(offer: offer)
+                                    NavigationLink(destination: OfferDetailView(offer: offer)) {
+                                        InfluencerOfferCard(offer: offer)
                                     }
                                 }
                             }
@@ -175,8 +175,8 @@ struct CategoryFilterChip: View {
     }
 }
 
-// MARK: - Search Result Card
-struct SearchResultCard: View {
+// MARK: - Influencer Offer Card (renamed from SearchResultCard to avoid conflict)
+struct InfluencerOfferCard: View {
     let offer: FirebaseOffer
     
     var body: some View {

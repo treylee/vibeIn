@@ -304,7 +304,7 @@ struct ActiveOfferCard: View {
     @State private var navigateToDetail = false
     
     var body: some View {
-        Button(action: { navigateToDetail = true }) {
+        NavigationLink(destination: OfferDetailView(offer: offer)) {
             VStack(alignment: .leading, spacing: 12) {
                 // Business Info
                 HStack {
@@ -362,9 +362,6 @@ struct ActiveOfferCard: View {
             .background(Color.white)
             .cornerRadius(12)
             .shadow(color: Color.black.opacity(0.05), radius: 5, y: 2)
-        }
-        .sheet(isPresented: $navigateToDetail) {
-            OfferDetailView(offer: offer)
         }
     }
 }
