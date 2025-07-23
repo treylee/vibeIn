@@ -12,6 +12,7 @@ class FirebaseUserService: ObservableObject {
     
     @Published var currentUser: FirebaseUser?
     @Published var isLoading = false
+    private var currentUserDocumentId: String?
     
     private init() {
         // Auto-login with stored user or create new user
@@ -20,40 +21,22 @@ class FirebaseUserService: ObservableObject {
     
     // MARK: - User Management
     private func loadOrCreateCurrentUser() {
-        // Check if user exists in UserDefaults
-        if let storedUserId = UserDefaults.standard.string(forKey: "currentUserId") {
-            loadUser(userId: storedUserId) { [weak self] user in
-                if let user = user {
-                    self?.currentUser = user
-                } else {
-                    // User not found, create new one
-                    self?.createRandomUser()
-                }
-            }
-        } else {
-            // No stored user, create new one
-            createRandomUser()
-        }
+        // Always create a new user on app launch
+        createRandomUser()
     }
     
     func createRandomUser() {
         isLoading = true
         
-        let randomNames = ["Alex", "Jordan", "Casey", "Riley", "Morgan", "Avery", "Quinn", "Blake", "Sage", "River"]
+        let randomNames = ["Alex", "Jordan", "Casey", "Riley", "Morgan", "Avery", "Quinn", "Blake", "Sage", "River", "Taylor", "Cameron", "Drew", "Jamie", "Sam", "Charlie", "Skyler", "Dakota", "Reese", "Phoenix"]
         let randomName = randomNames.randomElement() ?? "User"
         let userId = UUID().uuidString
-        let email = "\(randomName.lowercased())\(Int.random(in: 100...999))@vibesIn.com"
-        
-        // Create FirebaseUser with proper initialization
-        var newUser = FirebaseUser(
-            userId: userId,
-            userName: randomName,
-            email: email
-        )
+        let randomNumber = Int.random(in: 100...999)
+        let email = "\(randomName.lowercased())\(randomNumber)@vibesIn.com"
         
         let userData: [String: Any] = [
             "userId": userId,
-            "userName": randomName,
+            "userName": "\(randomName) \(randomNumber)",
             "email": email,
             "userType": "business_owner",
             "createdAt": Timestamp(),
@@ -62,19 +45,29 @@ class FirebaseUserService: ObservableObject {
             "businessId": NSNull()
         ]
         
+        // Create document and get the reference
         db.collection(usersCollection).addDocument(data: userData) { [weak self] error in
             DispatchQueue.main.async {
                 self?.isLoading = false
                 if let error = error {
                     print("❌ Error creating user: \(error.localizedDescription)")
                 } else {
-                    print("✅ User created successfully: \(randomName)")
+                    print("✅ New user created: \(randomName) \(randomNumber)")
+                    print("📧 Email: \(email)")
                     
-                    // Store user ID for future sessions
-                    UserDefaults.standard.set(userId, forKey: "currentUserId")
-                    
-                    // Set current user
-                    self?.currentUser = newUser
+                    // After creating, immediately query to get the document with its ID
+                    self?.db.collection(self?.usersCollection ?? "users")
+                        .whereField("userId", isEqualTo: userId)
+                        .limit(to: 1)
+                        .getDocuments { snapshot, error in
+                            if let document = snapshot?.documents.first {
+                                self?.currentUserDocumentId = document.documentID
+                                if let user = try? document.data(as: FirebaseUser.self) {
+                                    self?.currentUser = user
+                                    print("✅ User loaded with document ID: \(document.documentID)")
+                                }
+                            }
+                        }
                 }
             }
         }
@@ -85,22 +78,30 @@ class FirebaseUserService: ObservableObject {
         db.collection(usersCollection)
             .whereField("userId", isEqualTo: userId)
             .limit(to: 1)
-            .getDocuments { snapshot, error in
+            .getDocuments { [weak self] snapshot, error in
                 if let error = error {
                     print("❌ Error loading user: \(error.localizedDescription)")
                     completion(nil)
                     return
                 }
                 
-                let firebaseUser = try? snapshot?.documents.first?.data(as: FirebaseUser.self)
-                completion(firebaseUser)
+                if let document = snapshot?.documents.first {
+                    let firebaseUser = try? document.data(as: FirebaseUser.self)
+                    // Store the document ID when loading a user
+                    self?.currentUserDocumentId = document.documentID
+                    completion(firebaseUser)
+                } else {
+                    completion(nil)
+                }
             }
     }
     
     // MARK: - Update User After Business Creation
     func updateUserAfterBusinessCreation(businessId: String, completion: @escaping (Bool) -> Void) {
         guard let currentUser = currentUser,
-              let userDocId = currentUser.id else {
+              let userDocId = currentUserDocumentId,
+              !businessId.isEmpty else {
+            print("❌ Error: Invalid user or business ID - currentUser: \(currentUser != nil), docId: \(currentUserDocumentId ?? "nil"), businessId: \(businessId)")
             completion(false)
             return
         }
@@ -114,17 +115,42 @@ class FirebaseUserService: ObservableObject {
                     print("❌ Error updating user: \(error.localizedDescription)")
                     completion(false)
                 } else {
-                    print("✅ User updated after business creation")
+                    print("✅ User updated with business ID: \(businessId)")
+                    
+                    // Update the local current user by reloading from Firebase
+                    self?.loadUserByDocumentId(userDocId) { reloadedUser in
+                        if let reloadedUser = reloadedUser {
+                            self?.currentUser = reloadedUser
+                            print("✅ User reloaded with updated business info")
+                        }
+                    }
+                    
                     completion(true)
                 }
             }
         }
     }
     
+    // Helper method to load user by document ID
+    private func loadUserByDocumentId(_ documentId: String, completion: @escaping (FirebaseUser?) -> Void) {
+        db.collection(usersCollection).document(documentId).getDocument { snapshot, error in
+            if let error = error {
+                print("❌ Error loading user by ID: \(error.localizedDescription)")
+                completion(nil)
+                return
+            }
+            
+            let firebaseUser = try? snapshot?.data(as: FirebaseUser.self)
+            completion(firebaseUser)
+        }
+    }
+    
     // MARK: - Get User's Business
     func getUserBusiness(completion: @escaping (FirebaseBusiness?) -> Void) {
         guard let currentUser = currentUser,
-              let businessId = currentUser.businessId else {
+              let businessId = currentUser.businessId,
+              !businessId.isEmpty else {
+            print("❌ No business ID found for current user")
             completion(nil)
             return
         }

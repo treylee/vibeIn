@@ -35,10 +35,12 @@ struct OfferPreviewView: View {
             }
         }
         .navigationDestination(isPresented: $navigateToPortal) {
-            BizzPortalView()
+            // Navigate to the container with dashboard tab and the business
+            BizzNavigationContainerWithDashboard(initialBusiness: business)
+                .navigationBarBackButtonHidden(true)
         }
         .alert("Offer Created! 🎉", isPresented: $showSuccessAlert) {
-            Button("Back to Portal") {
+            Button("Back to Dashboard") {
                 navigateToPortal = true
             }
         } message: {
@@ -70,13 +72,24 @@ struct OfferPreviewView: View {
             maxParticipants: 100
         )
         
+        print("🚀 Creating offer for businessId: \(business.id ?? "no-id")")
+        print("   - Title: \(newOffer.title)")
+        print("   - Description: \(newOffer.description)")
+        print("   - Platforms: \(newOffer.platforms)")
+        
         FirebaseOfferService.shared.createOffer(newOffer) { result in
             isCreatingOffer = false
             
             switch result {
             case .success:
+                print("✅ Offer created successfully")
                 showSuccessAlert = true
+                
+                // Post notification that offer was created
+                NotificationCenter.default.post(name: NSNotification.Name("OfferCreated"), object: nil)
+                
             case .failure(let error):
+                print("❌ Offer creation failed: \(error.localizedDescription)")
                 alertMessage = error.localizedDescription
                 showErrorAlert = true
             }

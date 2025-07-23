@@ -1,5 +1,3 @@
-// Path: vibeIn/BizzPortal/BusinessConfirmationView.swift
-
 import SwiftUI
 
 struct BusinessConfirmationView: View {
@@ -18,8 +16,7 @@ struct BusinessConfirmationView: View {
         .navigationDestination(isPresented: $navigateToPreview) {
             BizzPreviewView(
                 businessName: selectedPlace.name,
-                address: selectedPlace.formattedAddress,
-                placeID: selectedPlace.placeId
+                address: selectedPlace.formattedAddress
             )
         }
     }
@@ -121,7 +118,7 @@ struct BusinessInfoCard: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white)
+                .fill(Color.white) // Made completely opaque
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
                         .stroke(Color.white.opacity(0.6), lineWidth: 1)

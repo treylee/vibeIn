@@ -1,3 +1,5 @@
+// Path: vibeIn/SharedPortalViews/LoginView.swift
+
 import SwiftUI
 
 struct LoginView: View {
@@ -146,7 +148,8 @@ struct NavigationLinks: View {
                 EmptyView()
             }
             
-            NavigationLink(destination: BizzPortalView(), isActive: $navigateBizz) {
+            // Navigate to the new container with bottom navigation
+            NavigationLink(destination: BizzNavigationContainer(), isActive: $navigateBizz) {
                 EmptyView()
             }
         }

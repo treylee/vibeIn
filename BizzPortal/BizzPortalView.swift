@@ -10,6 +10,9 @@ struct BizzPortalView: View {
     @State private var navigateToDashboard = false
     @State private var userBusiness: FirebaseBusiness?
     
+    // Make navigation state optional to handle cases where it's not provided
+    @State private var localNavigationState = BizzNavigationState()
+    
     var body: some View {
         NavigationStack {
             ZStack {
@@ -26,6 +29,7 @@ struct BizzPortalView: View {
             .navigationBarHidden(true)
             .navigationDestination(isPresented: $navigateToSearch) {
                 BizzSelectionView()
+                    .showBottomBar(false) // Hide bottom bar on business selection
             }
             .navigationDestination(isPresented: $navigateToDashboard) {
                 if let business = userBusiness {
@@ -38,15 +42,32 @@ struct BizzPortalView: View {
             .onChange(of: userService.currentUser) { oldValue, newValue in
                 loadUserBusiness()
             }
+            // Update navigation state when business is loaded
+            .onChange(of: userBusiness) { oldValue, newValue in
+                // Only update if we have access to navigation state
+                updateNavigationState(with: newValue)
+            }
         }
+        .environmentObject(localNavigationState)
+    }
+    
+    private func updateNavigationState(with business: FirebaseBusiness?) {
+        localNavigationState.userBusiness = business
+        print("🏢 BizzPortal: Business updated in navigation state - \(business?.name ?? "nil")")
     }
     
     private func loadUserBusiness() {
         guard let currentUser = userService.currentUser,
-              currentUser.hasCreatedBusiness else { return }
+              currentUser.hasCreatedBusiness else {
+            userBusiness = nil
+            updateNavigationState(with: nil)
+            return
+        }
         
         userService.getUserBusiness { business in
             self.userBusiness = business
+            self.updateNavigationState(with: business)
+            print("🏢 BizzPortal: Business loaded - \(business?.name ?? "nil")")
         }
     }
 }
@@ -513,8 +534,6 @@ struct BusinessDisplayCard: View {
                         .foregroundColor(.blue)
                         .lineLimit(2)
                 }
-                
-               
             }
             
             Spacer()

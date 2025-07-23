@@ -41,7 +41,7 @@ class FirebaseOfferService: ObservableObject {
                 
                 DispatchQueue.main.async {
                     self?.offers = offers
-                    print("🔄 Firebase: Updated to \(offers.count) offers")
+                    print("🔄 Firebase: Updated to \(offers.count) active offers")
                 }
             }
     }
@@ -52,7 +52,9 @@ class FirebaseOfferService: ObservableObject {
         completion: @escaping (Result<String, Error>) -> Void
     ) {
         isLoading = true
-        print("🚀 Creating offer: \(offer.title)")
+        print("🚀 Creating offer in Firebase: \(offer.title)")
+        print("   - BusinessId: \(offer.businessId)")
+        print("   - BusinessName: \(offer.businessName)")
         
         let offerData: [String: Any] = [
             "businessId": offer.businessId,
@@ -75,7 +77,7 @@ class FirebaseOfferService: ObservableObject {
                     print("❌ Error creating offer: \(error.localizedDescription)")
                     completion(.failure(error))
                 } else {
-                    print("✅ Offer created successfully!")
+                    print("✅ Offer created successfully in Firebase!")
                     completion(.success("Offer created successfully"))
                 }
             }
@@ -127,6 +129,8 @@ class FirebaseOfferService: ObservableObject {
     
     // MARK: - Get Offers for Business
     func getOffersForBusiness(businessId: String, completion: @escaping ([FirebaseOffer]) -> Void) {
+        print("🔍 Querying offers for businessId: \(businessId)")
+        
         db.collection(offersCollection)
             .whereField("businessId", isEqualTo: businessId)
             .order(by: "createdAt", descending: true)
@@ -137,11 +141,23 @@ class FirebaseOfferService: ObservableObject {
                     return
                 }
                 
-                let offers = snapshot?.documents.compactMap { document in
-                    try? document.data(as: FirebaseOffer.self)
-                } ?? []
+                print("📄 Found \(snapshot?.documents.count ?? 0) documents")
                 
-                completion(offers)
+                var parsedOffers: [FirebaseOffer] = []
+                
+                for document in snapshot?.documents ?? [] {
+                    do {
+                        let offer = try document.data(as: FirebaseOffer.self)
+                        parsedOffers.append(offer)
+                        print("   ✅ Parsed offer: \(offer.title)")
+                    } catch {
+                        print("   ❌ Failed to parse offer with ID \(document.documentID): \(error)")
+                        print("   📝 Raw data: \(document.data())")
+                    }
+                }
+                
+                print("✅ Successfully parsed \(parsedOffers.count) offers")
+                completion(parsedOffers)
             }
     }
     

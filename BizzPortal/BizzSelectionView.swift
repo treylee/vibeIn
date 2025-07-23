@@ -1,36 +1,56 @@
+// Path: vibeIn/BizzPortal/BizzSelectionView.swift
+
 import SwiftUI
+import MapKit
 
 struct BizzSelectionView: View {
-    @State private var businessName = ""
-    @State private var selectedPlace: GooglePlace? = nil
+    @State private var searchText = ""
+    @State private var selectedPlace: GooglePlace?
     @State private var searchResults: [GooglePlace] = []
     @State private var isSearching = false
-    @State private var navigateToAddress = false
+    @State private var navigateToPreview = false
     @State private var showingResults = false
     
     var body: some View {
         ZStack {
-            BusinessNameBackground()
-            BusinessNameContent(
-                businessName: $businessName,
-                selectedPlace: $selectedPlace,
-                searchResults: $searchResults,
-                isSearching: $isSearching,
-                navigateToAddress: $navigateToAddress,
-                showingResults: $showingResults,
-                searchAction: searchGooglePlaces
-            )
-        }
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(false)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                EmptyView()
+            BizzSelectionBackground()
+            
+            VStack(spacing: 0) {
+                BizzSelectionHeader()
+                    .padding(.bottom, 10)
+                
+                VStack(spacing: 20) {
+                    BizzSearchBar(
+                        searchText: $searchText,
+                        searchResults: $searchResults,
+                        showingResults: $showingResults,
+                        searchAction: searchGooglePlaces
+                    )
+                    
+                    if isSearching {
+                        BizzLoadingView()
+                    } else if showingResults && !searchResults.isEmpty {
+                        BizzPlacesList(
+                            places: searchResults,
+                            onSelect: selectPlace
+                        )
+                        .frame(maxHeight: .infinity) // Make list take more space
+                    } else if !showingResults {
+                        BizzEmptyStateView()
+                    }
+                    
+                    Spacer()
+                }
+                .padding(.horizontal)
             }
         }
-        .navigationDestination(isPresented: $navigateToAddress) {
+        .navigationBarBackButtonHidden(true)
+        .navigationDestination(isPresented: $navigateToPreview) {
             if let place = selectedPlace {
-                BusinessConfirmationView(selectedPlace: place)
+                BizzPreviewView(
+                    businessName: place.name,
+                    address: place.formattedAddress
+                )
             }
         }
     }
@@ -65,16 +85,22 @@ struct BizzSelectionView: View {
             }
         }.resume()
     }
+    
+    private func selectPlace(_ place: GooglePlace) {
+        selectedPlace = place
+        navigateToPreview = true
+    }
 }
 
-// MARK: - Business Name Input Components
-struct BusinessNameBackground: View {
+
+// MARK: - Supporting Views
+
+struct BizzSelectionBackground: View {
     var body: some View {
         LinearGradient(
             gradient: Gradient(colors: [
-                Color.blue.opacity(0.3),
-                Color.purple.opacity(0.4),
-                Color.pink.opacity(0.3)
+                Color.blue.opacity(0.1),
+                Color.purple.opacity(0.1)
             ]),
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -83,98 +109,30 @@ struct BusinessNameBackground: View {
     }
 }
 
-struct BusinessNameContent: View {
-    @Binding var businessName: String
-    @Binding var selectedPlace: GooglePlace?
-    @Binding var searchResults: [GooglePlace]
-    @Binding var isSearching: Bool
-    @Binding var navigateToAddress: Bool
-    @Binding var showingResults: Bool
-    let searchAction: (String) -> Void
-    
+struct BizzSelectionHeader: View {
     var body: some View {
-        VStack(spacing: 40) {
-            Spacer()
-            BusinessNameHeader()
-            BusinessSearchSection(
-                businessName: $businessName,
-                selectedPlace: $selectedPlace,
-                searchResults: $searchResults,
-                showingResults: $showingResults,
-                navigateToAddress: $navigateToAddress,
-                searchAction: searchAction
-            )
-            Spacer()
-        }
-    }
-}
-
-struct BusinessNameHeader: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "building.2.fill")
-                .font(.system(size: 80))
-                .foregroundColor(.white)
-                .shadow(radius: 10)
+        VStack(spacing: 12) {
+            Image(systemName: "building.2.crop.circle.fill")
+                .font(.system(size: 50)) // Reduced from 80
+                .foregroundColor(.blue)
+                .shadow(radius: 8)
             
-            VStack(spacing: 8) {
-                Text("Find your business")
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .multilineTextAlignment(.center)
-                
-                Text("Search for your business on Google")
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.8))
-            }
-        }
-    }
-}
-
-struct BusinessSearchSection: View {
-    @Binding var businessName: String
-    @Binding var selectedPlace: GooglePlace?
-    @Binding var searchResults: [GooglePlace]
-    @Binding var showingResults: Bool
-    @Binding var navigateToAddress: Bool
-    let searchAction: (String) -> Void
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            VStack(alignment: .leading, spacing: 12) {
-                BusinessSearchBar(
-                    businessName: $businessName,
-                    searchResults: $searchResults,
-                    showingResults: $showingResults,
-                    searchAction: searchAction
-                )
-                
-                if showingResults && !searchResults.isEmpty {
-                    BusinessSearchResults(
-                        searchResults: searchResults,
-                        selectedPlace: $selectedPlace,
-                        businessName: $businessName,
-                        showingResults: $showingResults
-                    )
-                }
-                
-                if let selected = selectedPlace {
-                    SelectedBusinessCard(selectedPlace: selected)
-                }
-            }
+            Text("Find Your Business")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
             
-            BusinessActionButtons(
-                selectedPlace: selectedPlace,
-                navigateToAddress: $navigateToAddress
-            )
+            Text("Search for your business on Google")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
         }
-        .padding(.horizontal, 40)
+        .padding(.top, 40)
     }
 }
 
-struct BusinessSearchBar: View {
-    @Binding var businessName: String
+struct BizzSearchBar: View {
+    @Binding var searchText: String
     @Binding var searchResults: [GooglePlace]
     @Binding var showingResults: Bool
     let searchAction: (String) -> Void
@@ -182,12 +140,11 @@ struct BusinessSearchBar: View {
     var body: some View {
         HStack {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.black.opacity(0.7))
+                .foregroundColor(.gray)
             
-            TextField("e.g., June's Pizza Oakland", text: $businessName)
-                .font(.title3)
-                .foregroundColor(.black)
-                .onChange(of: businessName) { newValue in
+            TextField("Enter business name...", text: $searchText)
+                .textFieldStyle(PlainTextFieldStyle())
+                .onChange(of: searchText) { newValue in
                     if newValue.count > 2 {
                         searchAction(newValue)
                     } else {
@@ -195,168 +152,120 @@ struct BusinessSearchBar: View {
                         showingResults = false
                     }
                 }
+            
+            if !searchText.isEmpty {
+                Button(action: {
+                    searchText = ""
+                    searchResults = []
+                    showingResults = false
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.gray)
+                }
+            }
         }
         .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white) // Made completely opaque
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.gray.opacity(0.4), lineWidth: 1)
-                )
-        )
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(radius: 2)
     }
 }
 
-struct BusinessSearchResults: View {
-    let searchResults: [GooglePlace]
-    @Binding var selectedPlace: GooglePlace?
-    @Binding var businessName: String
-    @Binding var showingResults: Bool
+struct BizzPlacesList: View {
+    let places: [GooglePlace]
+    let onSelect: (GooglePlace) -> Void
     
     var body: some View {
         ScrollView {
-            VStack(spacing: 8) {
-                ForEach(searchResults, id: \.placeId) { place in
-                    Button(action: {
-                        selectedPlace = place
-                        businessName = place.name
-                        showingResults = false
-                    }) {
-                        BusinessSearchResultCard(place: place)
+            VStack(spacing: 12) {
+                ForEach(places, id: \.placeId) { place in
+                    BizzPlaceCard(place: place) {
+                        onSelect(place)
                     }
                 }
             }
+            .padding(.vertical, 8)
         }
-        .frame(maxHeight: 200)
     }
 }
 
-struct BusinessSearchResultCard: View {
+struct BizzPlaceCard: View {
     let place: GooglePlace
+    let onSelect: () -> Void
     
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(place.name)
-                    .font(.headline)
-                    .foregroundColor(.black)
-                
-                Text(place.formattedAddress)
-                    .font(.caption)
-                    .foregroundColor(.black.opacity(0.7))
-                    .lineLimit(2)
-                
-                if place.isVerified {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                            .font(.caption)
-                        Text("Google Verified")
-                            .font(.caption)
-                            .foregroundColor(.green)
-                    }
-                }
-            }
-            Spacer()
-            Image(systemName: "arrow.right.circle")
-                .foregroundColor(.black.opacity(0.7))
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white) // Made completely opaque
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.gray.opacity(0.4), lineWidth: 1)
-                )
-        )
-    }
-}
-
-struct SelectedBusinessCard: View {
-    let selectedPlace: GooglePlace
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-                Text("Selected Business:")
-                    .font(.headline)
-                    .foregroundColor(.black)
-            }
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(selectedPlace.name)
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.black)
-                
-                Text(selectedPlace.formattedAddress)
-                    .font(.subheadline)
-                    .foregroundColor(.black.opacity(0.7))
-                
-                if selectedPlace.isVerified {
-                    HStack(spacing: 4) {
-                        Image(systemName: "shield.checkered")
-                            .foregroundColor(.green)
-                        Text("Google Verified Business")
-                            .font(.caption)
-                            .foregroundColor(.green)
-                    }
-                }
-            }
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white) // Made completely opaque
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.green.opacity(0.6), lineWidth: 2)
-                )
-        )
-    }
-}
-
-struct BusinessActionButtons: View {
-    let selectedPlace: GooglePlace?
-    @Binding var navigateToAddress: Bool
-    
-    var body: some View {
-        VStack(spacing: 12) {
-            let buttonBackground = selectedPlace == nil ?
-                  Color.gray.opacity(0.5) :
-                  Color.pink
-            
-            Button(action: {
-                if selectedPlace != nil {
-                    navigateToAddress = true
-                }
-            }) {
+        Button(action: onSelect) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text("Continue with Selected Business")
-                        .font(.headline)
-                    Image(systemName: "arrow.right")
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(place.name)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                            .multilineTextAlignment(.leading)
+                        
+                        Text(place.formattedAddress)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.leading)
+                        
+                        if place.isVerified {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.seal.fill")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                                Text("Verified")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                            }
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(.gray)
                 }
-                .foregroundColor(.white)
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(buttonBackground)
-                )
             }
-            .disabled(selectedPlace == nil)
-            
-            Button(action: {
-                // Allow manual entry for new businesses
-            }) {
-                Text("Can't find your business? Add manually")
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.8))
-            }
+            .padding()
+            .background(Color.white)
+            .cornerRadius(12)
+            .shadow(radius: 2)
         }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+struct BizzLoadingView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: .blue))
+                .scaleEffect(1.5)
+            
+            Text("Searching for businesses...")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+struct BizzEmptyStateView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "building.2")
+                .font(.system(size: 60))
+                .foregroundColor(.gray.opacity(0.5))
+            
+            Text("Search for your business")
+                .font(.headline)
+                .foregroundColor(.secondary)
+            
+            Text("Enter your business name above to get started")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

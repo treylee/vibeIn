@@ -47,8 +47,8 @@ class FirebaseBusinessService: ObservableObject {
             }
     }
     
-    // MARK: - Create Business (Simplified)
-    func createBusiness(
+    // MARK: - Create Business (Updated to return business ID)
+    func createBusinessWithId(
         name: String,
         address: String,
         placeID: String,
@@ -57,7 +57,7 @@ class FirebaseBusinessService: ObservableObject {
         selectedImage: UIImage? = nil,
         selectedVideoURL: URL? = nil,
         googleReviews: [GPlaceDetails.Review] = [],
-        completion: @escaping (Result<String, Error>) -> Void
+        completion: @escaping (Result<(String, String), Error>) -> Void // Returns (message, businessId)
     ) {
         isLoading = true
         print("🚀 Creating business: \(name)")
@@ -83,22 +83,64 @@ class FirebaseBusinessService: ObservableObject {
             "longitude": -122.4194
         ]
         
-        db.collection(businessCollection).addDocument(data: businessData) { [weak self] error in
+        // Use addDocument which returns the document reference
+        var docRef: DocumentReference? = nil
+        docRef = db.collection(businessCollection).addDocument(data: businessData) { [weak self] error in
             DispatchQueue.main.async {
                 self?.isLoading = false
                 if let error = error {
                     print("❌ Error creating business: \(error.localizedDescription)")
                     completion(.failure(error))
+                } else if let documentId = docRef?.documentID {
+                    print("✅ Business saved to Firebase with ID: \(documentId)")
+                    completion(.success(("Business created successfully!", documentId)))
                 } else {
-                    print("✅ Business saved to Firebase successfully!")
-                    completion(.success("Business created successfully"))
+                    print("❌ Error: Could not get document ID")
+                    completion(.failure(NSError(domain: "FirebaseBusinessService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Could not get document ID"])))
                 }
+            }
+        }
+    }
+    
+    // Keep the old method for backward compatibility
+    func createBusiness(
+        name: String,
+        address: String,
+        placeID: String,
+        category: String,
+        offer: String,
+        selectedImage: UIImage? = nil,
+        selectedVideoURL: URL? = nil,
+        googleReviews: [GPlaceDetails.Review] = [],
+        completion: @escaping (Result<String, Error>) -> Void
+    ) {
+        createBusinessWithId(
+            name: name,
+            address: address,
+            placeID: placeID,
+            category: category,
+            offer: offer,
+            selectedImage: selectedImage,
+            selectedVideoURL: selectedVideoURL,
+            googleReviews: googleReviews
+        ) { result in
+            switch result {
+            case .success(let (message, _)):
+                completion(.success(message))
+            case .failure(let error):
+                completion(.failure(error))
             }
         }
     }
     
     // MARK: - Get Business by ID
     func getBusinessById(businessId: String, completion: @escaping (FirebaseBusiness?) -> Void) {
+        guard !businessId.isEmpty else {
+            print("❌ Error: Empty business ID provided")
+            completion(nil)
+            return
+        }
+        
         db.collection(businessCollection).document(businessId).getDocument { snapshot, error in
             if let error = error {
                 print("❌ Error fetching business: \(error.localizedDescription)")

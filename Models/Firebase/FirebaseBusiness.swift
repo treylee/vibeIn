@@ -4,7 +4,7 @@ import Foundation
 import FirebaseFirestore
 
 // MARK: - Firebase Business Model
-struct FirebaseBusiness: Codable, Identifiable {
+struct FirebaseBusiness: Codable, Identifiable, Equatable {
     @DocumentID var id: String?
     let name: String
     let address: String
@@ -29,6 +29,13 @@ struct FirebaseBusiness: Codable, Identifiable {
     // Location data
     let latitude: Double?
     let longitude: Double?
+    
+    // MARK: - Equatable
+    static func == (lhs: FirebaseBusiness, rhs: FirebaseBusiness) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.name == rhs.name &&
+               lhs.placeID == rhs.placeID
+    }
     
     // Convert to Restaurant model for backwards compatibility
     func toRestaurant() -> Restaurant {

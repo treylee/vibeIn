@@ -10,44 +10,117 @@ struct BusinessDashboardView: View {
     @State private var loadingOffers = false
     @State private var mapRegion = MKCoordinateRegion()
     @State private var vibesDropdownOpen = false
+    @State private var selectedTimeframe = "This Week"
     
     var body: some View {
         ZStack {
-            BusinessDashboardBackground()
-            BusinessDashboardContent(
-                business: business,
-                businessOffers: businessOffers,
-                loadingOffers: loadingOffers,
-                mapRegion: mapRegion,
-                vibesDropdownOpen: $vibesDropdownOpen,
-                navigateToCreateOffer: $navigateToCreateOffer
+            // Professional gradient background (restored)
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(red: 0.95, green: 0.95, blue: 0.97),
+                    Color(red: 0.98, green: 0.98, blue: 1.0)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
             )
-        }
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text(business.name)
-                    .font(.headline)
-                    .foregroundColor(.white)
+            .ignoresSafeArea()
+            
+            // Content without navigation bar
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 24) {
+                    // Dashboard Header
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Dash")
+                                .font(.system(size: 32, weight: .semibold, design: .rounded))
+                                .foregroundColor(Color(red: 0.5, green: 0.4, blue: 0.6))
+                            
+                            HStack(spacing: 6) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(Color(red: 0.5, green: 0.4, blue: 0.6))
+                                
+                                Text("AI Powered insights updated in real-time")
+                                    .font(.caption)
+                                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
+                            }
+                        }
+                        
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 60) // Account for status bar
+                    
+                    // Quick Stats Overview
+                    QuickStatsRow(business: business)
+                    
+                    // Active Offers Section
+                    ActiveOffersSection(
+                        businessOffers: businessOffers,
+                        loadingOffers: loadingOffers,
+                        navigateToCreateOffer: $navigateToCreateOffer
+                    )
+                    
+                    // Analytics Grid
+                    AnalyticsGridView(business: business, selectedTimeframe: $selectedTimeframe)
+                    
+                    // Reviews & Vibes Section
+                    HStack(spacing: 16) {
+                        ReviewsCard(business: business)
+                        VibesCard(isOpen: $vibesDropdownOpen)
+                    }
+                    .padding(.horizontal)
+                    
+                    // Location Card
+                    LocationCard(business: business, mapRegion: mapRegion)
+                        .padding(.horizontal)
+                        .padding(.bottom, 100) // Extra padding for bottom navigation
+                }
             }
         }
+        .navigationBarHidden(true)
         .navigationDestination(isPresented: $navigateToCreateOffer) {
             CreateOfferView(business: business)
+                .showBottomBar(false)
         }
         .onAppear {
             loadBusinessOffers()
             setupMapRegion()
+            print("📊 Dashboard loading for business: \(business.name) with ID: \(business.id ?? "no-id")")
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OfferCreated"))) { _ in
+            // Reload offers when a new one is created
+            print("🔄 Reloading offers after creation")
+            loadBusinessOffers()
+        }
+        .showBottomBar(true) // Explicitly show bottom bar on dashboard
     }
     
     private func loadBusinessOffers() {
-        guard let businessId = business.id else { return }
+        guard let businessId = business.id else {
+            print("❌ No business ID available")
+            return
+        }
         
         loadingOffers = true
+        print("🔍 Loading offers for businessId: \(businessId)")
+        
         FirebaseOfferService.shared.getOffersForBusiness(businessId: businessId) { offers in
-            self.businessOffers = offers
-            self.loadingOffers = false
+            DispatchQueue.main.async {
+                self.businessOffers = offers
+                self.loadingOffers = false
+                print("✅ Loaded \(offers.count) offers for business \(businessId)")
+                
+                // Debug print each offer
+                for (index, offer) in offers.enumerated() {
+                    print("  Offer \(index + 1):")
+                    print("    - ID: \(offer.id ?? "no-id")")
+                    print("    - Title: \(offer.title)")
+                    print("    - Description: \(offer.description)")
+                    print("    - BusinessId: \(offer.businessId)")
+                    print("    - Active: \(offer.isActive), Expired: \(offer.isExpired)")
+                }
+            }
         }
     }
     
@@ -58,7 +131,6 @@ struct BusinessDashboardView: View {
                 span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
             )
         } else {
-            // Default to San Francisco if no coordinates
             mapRegion = MKCoordinateRegion(
                 center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
                 span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
@@ -67,604 +139,643 @@ struct BusinessDashboardView: View {
     }
 }
 
-// MARK: - Business Dashboard Components
-struct BusinessDashboardBackground: View {
-    var body: some View {
-        LinearGradient(
-            gradient: Gradient(colors: [
-                Color.green.opacity(0.3),
-                Color.teal.opacity(0.4),
-                Color.blue.opacity(0.3)
-            ]),
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-        .ignoresSafeArea()
-    }
-}
-
-struct BusinessDashboardContent: View {
-    let business: FirebaseBusiness
-    let businessOffers: [FirebaseOffer]
-    let loadingOffers: Bool
-    let mapRegion: MKCoordinateRegion
-    @Binding var vibesDropdownOpen: Bool
-    @Binding var navigateToCreateOffer: Bool
+// MARK: - Professional Navigation Bar
+struct ProfessionalNavigationBar: View {
+    let businessName: String
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 30) {
-                BusinessDashboardHeader()
-                BusinessPreviewCard(
-                    business: business,
-                    businessOffers: businessOffers,
-                    loadingOffers: loadingOffers,
-                    mapRegion: mapRegion,
-                    vibesDropdownOpen: $vibesDropdownOpen,
-                    navigateToCreateOffer: $navigateToCreateOffer
-                )
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Dashboard")
+                        .font(.caption2)
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+                    
+                    Text(businessName)
+                        .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
+                        .lineLimit(1)
+                }
+                
+                Spacer()
+                
+                // Simple icon without menu
+                Image(systemName: "storefront.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 50)
+            .padding(.bottom, 12)
+            
+            Divider()
+                .background(Color(red: 0.9, green: 0.9, blue: 0.92))
         }
+        .background(Color.white)
     }
 }
 
-struct BusinessDashboardHeader: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "storefront")
-                .font(.system(size: 60))
-                .foregroundColor(.white)
-                .shadow(radius: 8)
-            
-            Text("Your Business is Live! 🎉")
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(.white)
-                .multilineTextAlignment(.center)
-            
-            Text("Your business is now discoverable by influencers")
-                .font(.subheadline)
-                .foregroundColor(.white.opacity(0.8))
-                .multilineTextAlignment(.center)
-        }
-        .padding(.top, 20)
-    }
-}
-
-struct BusinessPreviewCard: View {
+// MARK: - Quick Stats Row
+struct QuickStatsRow: View {
     let business: FirebaseBusiness
-    let businessOffers: [FirebaseOffer]
-    let loadingOffers: Bool
-    let mapRegion: MKCoordinateRegion
-    @Binding var vibesDropdownOpen: Bool
-    @Binding var navigateToCreateOffer: Bool
     
     var body: some View {
-        VStack(spacing: 20) {
-            BusinessBasicInfo(business: business)
-            BusinessMediaDisplay(business: business, mapRegion: mapRegion)
-            BusinessCurrentOffers(
-                businessOffers: businessOffers,
-                loadingOffers: loadingOffers
+        HStack(spacing: 12) {
+            QuickStatCard(
+                icon: "eye.fill",
+                value: "\(calculateTodayViews())",
+                label: "Views Today",
+                trend: "+12%",
+                trendUp: true,
+                color: .blue
             )
-            BusinessStatsSection(business: business)
-            VibesSection(isOpen: $vibesDropdownOpen)
-            BusinessAnalyticsSection(business: business)
-            CreateOfferButton(navigateToCreateOffer: $navigateToCreateOffer)
+            
+            QuickStatCard(
+                icon: "star.fill",
+                value: business.displayRating,
+                label: "Avg Rating",
+                trend: "↑ 0.2",
+                trendUp: true,
+                color: .orange
+            )
+            
+            QuickStatCard(
+                icon: "person.2.fill",
+                value: "\(calculateActiveUsers())",
+                label: "Active Now",
+                trend: "+5",
+                trendUp: true,
+                color: .green
+            )
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color.white)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color.white.opacity(0.5), lineWidth: 1)
-                )
-        )
         .padding(.horizontal)
     }
-}
-
-struct BusinessBasicInfo: View {
-    let business: FirebaseBusiness
     
-    var body: some View {
-        VStack(spacing: 8) {
-            Text(business.name)
-                .font(.largeTitle)
-                .bold()
-                .foregroundColor(.black)
-            
-            Text(business.address)
-                .font(.subheadline)
-                .foregroundColor(.gray)
-                .multilineTextAlignment(.center)
-            
-            HStack(spacing: 4) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-                Text("Live on Platform")
-                    .font(.caption)
-                    .foregroundColor(.green)
-            }
-        }
+    private func calculateTodayViews() -> Int {
+        return 127 + Int.random(in: -10...20)
+    }
+    
+    private func calculateActiveUsers() -> Int {
+        return 8 + Int.random(in: -2...5)
     }
 }
 
-struct BusinessMediaDisplay: View {
-    let business: FirebaseBusiness
-    let mapRegion: MKCoordinateRegion
+// MARK: - Quick Stat Card
+struct QuickStatCard: View {
+    let icon: String
+    let value: String
+    let label: String
+    let trend: String
+    let trendUp: Bool
+    let color: Color
     
     var body: some View {
-        if let imageURL = business.imageURL, !imageURL.isEmpty {
-            AsyncImage(url: URL(string: imageURL)) { image in
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } placeholder: {
-                ProgressView()
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 16))
+                    .foregroundColor(color)
+                Spacer()
+                Text(trend)
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(trendUp ? .green : .red)
             }
-            .frame(height: 200)
-            .cornerRadius(12)
-            .clipped()
-        } else {
-            // Always show map with Google Maps integration
-            Map(coordinateRegion: .constant(mapRegion))
-                .frame(height: 200)
-                .cornerRadius(12)
-                .overlay(
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Image(systemName: "location.fill")
-                                .foregroundColor(.red)
-                            Text("Your Business Location")
-                                .font(.caption)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.black.opacity(0.7))
-                                .cornerRadius(8)
-                            Spacer()
-                        }
-                        .padding()
-                    }
-                )
+            
+            Text(value)
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
+            
+            Text(label)
+                .font(.caption)
+                .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
         }
+        .padding()
+        .frame(maxWidth: .infinity)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
     }
 }
 
-struct BusinessCurrentOffers: View {
+// MARK: - Active Offers Section
+struct ActiveOffersSection: View {
     let businessOffers: [FirebaseOffer]
     let loadingOffers: Bool
+    @Binding var navigateToCreateOffer: Bool
     
     private var activeOffers: [FirebaseOffer] {
         businessOffers.filter { $0.isActive && !$0.isExpired }
     }
     
+    private var allOffers: [FirebaseOffer] {
+        businessOffers.sorted { $0.createdAt.dateValue() > $1.createdAt.dateValue() }
+    }
+    
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
+            // Section Header
             HStack {
-                Image(systemName: "gift.fill")
-                    .foregroundColor(.orange)
-                Text("Current Offers")
-                    .font(.headline)
-                    .foregroundColor(.black)
-                Spacer()
-                Text("\(activeOffers.count)")
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.orange)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.1))
-                    .cornerRadius(8)
-            }
-            
-            if loadingOffers {
-                ProgressView("Loading offers...")
-                    .frame(height: 60)
-            } else if activeOffers.isEmpty {
-                VStack(spacing: 8) {
-                    Text("No active offers")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                    Text("Create your first offer to attract influencers!")
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Your Offers")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
+                    
+                    Text("\(activeOffers.count) active, \(allOffers.count) total")
                         .font(.caption)
-                        .foregroundColor(.gray)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(height: 60)
-            } else {
-                ForEach(activeOffers.prefix(2)) { offer in
-                    OfferSummaryCard(offer: offer)
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
                 }
                 
-                if activeOffers.count > 2 {
-                    Text("+ \(activeOffers.count - 2) more offers")
-                        .font(.caption)
-                        .foregroundColor(.blue)
+                Spacer()
+                
+                Button(action: { navigateToCreateOffer = true }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus")
+                        Text("New Offer")
+                    }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(red: 0.4, green: 0.2, blue: 0.6),
+                                Color(red: 0.5, green: 0.3, blue: 0.7)
+                            ]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(8)
+                }
+            }
+            .padding(.horizontal)
+            
+            // Offers List
+            if loadingOffers {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .padding()
+                    Spacer()
+                }
+            } else if allOffers.isEmpty {
+                EmptyOffersCard(navigateToCreateOffer: $navigateToCreateOffer)
+                    .padding(.horizontal)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        ForEach(allOffers) { offer in
+                            OfferCard(offer: offer)
+                        }
+                    }
+                    .padding(.horizontal)
                 }
             }
         }
-        .padding()
-        .background(Color.orange.opacity(0.1))
-        .cornerRadius(12)
     }
 }
 
-struct OfferSummaryCard: View {
+// MARK: - Offer Card
+struct OfferCard: View {
     let offer: FirebaseOffer
     
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(offer.title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.black)
-                
-                Text("\(offer.participantCount)/\(offer.maxParticipants) joined")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
-            
-            Spacer()
-            
-            VStack(alignment: .trailing, spacing: 4) {
-                Text("Valid until")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-                Text(offer.formattedValidUntil)
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.orange)
-            }
-        }
-        .padding(.vertical, 8)
+    var participationPercentage: Double {
+        guard offer.maxParticipants > 0 else { return 0 }
+        return Double(offer.participantCount) / Double(offer.maxParticipants)
     }
-}
-
-struct BusinessStatsSection: View {
-    let business: FirebaseBusiness
     
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
+            // Offer Header
             HStack {
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                    .foregroundColor(.blue)
-                Text("Business Stats")
-                    .font(.headline)
-                    .foregroundColor(.black)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(offer.title)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
+                    
+                    Text(offer.description)
+                        .font(.caption)
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
+                        .lineLimit(2)
+                }
+                
                 Spacer()
+                
+                // Status Badge
+                Text(offer.isExpired ? "Expired" : "Active")
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(offer.isExpired ? Color.red : Color.green)
+                    .cornerRadius(4)
             }
             
-            HStack(spacing: 20) {
-                StatItem(
-                    icon: "star.fill",
-                    value: business.displayRating,
-                    label: "Rating",
-                    color: .yellow
-                )
-                
-                StatItem(
-                    icon: "text.bubble.fill",
-                    value: "\(business.reviewCount ?? 0)",
-                    label: "Google Reviews",
-                    color: .blue
-                )
-                
-                StatItem(
-                    icon: "eye.fill",
-                    value: "\(generateRealisticViews())",
-                    label: "Profile Views",
-                    color: .green
-                )
-            }
-        }
-        .padding()
-        .background(Color.blue.opacity(0.1))
-        .cornerRadius(12)
-    }
-    
-    private func generateRealisticViews() -> Int {
-        // Generate realistic views based on business age and review count
-        let baseViews = max(10, (business.reviewCount ?? 0) * 3)
-        return baseViews + Int.random(in: 5...25)
-    }
-}
-
-struct VibesSection: View {
-    @Binding var isOpen: Bool
-    
-    private let sampleVibes = [
-        VibeReview(
-            author: "Sarah M.",
-            rating: 5,
-            text: "Amazing atmosphere! The lighting is perfect for photos and the staff is super accommodating.",
-            vibe: "Instagram-Perfect",
-            platform: "Instagram",
-            date: "2 days ago"
-        ),
-        VibeReview(
-            author: "Mike Chen",
-            rating: 4,
-            text: "Great for content creation. They even helped me get the perfect angle for my food shots!",
-            vibe: "Content Creator Friendly",
-            platform: "TikTok",
-            date: "1 week ago"
-        ),
-        VibeReview(
-            author: "Emma Davis",
-            rating: 5,
-            text: "The aesthetic here is unmatched. Every corner is picture-perfect, and the natural lighting is chef's kiss.",
-            vibe: "Aesthetic Goals",
-            platform: "Instagram",
-            date: "3 days ago"
-        )
-    ]
-    
-    var body: some View {
-        VStack(spacing: 12) {
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    isOpen.toggle()
+            // Platforms
+            HStack(spacing: 8) {
+                ForEach(offer.platforms, id: \.self) { platform in
+                    HStack(spacing: 4) {
+                        Image(systemName: platformIcon(for: platform))
+                            .font(.caption2)
+                        Text(platform)
+                            .font(.caption2)
+                    }
+                    .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.5))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(red: 0.95, green: 0.95, blue: 0.97))
+                    .cornerRadius(4)
                 }
-            }) {
+            }
+            
+            Divider()
+            
+            // Participation Progress
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Image(systemName: "sparkles")
-                        .foregroundColor(.purple)
-                    Text("Vibes")
-                        .font(.headline)
-                        .foregroundColor(.black)
+                    Text("Participation")
+                        .font(.caption)
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
                     
                     Spacer()
                     
-                    Text("\(sampleVibes.count)")
+                    Text("\(offer.participantCount)/\(offer.maxParticipants)")
                         .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundColor(.purple)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.purple.opacity(0.1))
-                        .cornerRadius(6)
-                    
-                    Image(systemName: isOpen ? "chevron.up" : "chevron.down")
-                        .foregroundColor(.purple)
-                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
                 }
-            }
-            
-            if isOpen {
-                VStack(spacing: 8) {
-                    ForEach(sampleVibes, id: \.author) { vibe in
-                        VibeCard(vibe: vibe)
+                
+                GeometryReader { geometry in
+                    ZStack(alignment: .leading) {
+                        Rectangle()
+                            .fill(Color(red: 0.95, green: 0.95, blue: 0.97))
+                            .frame(height: 6)
+                            .cornerRadius(3)
+                        
+                        Rectangle()
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color(red: 0.4, green: 0.2, blue: 0.6),
+                                        Color(red: 0.5, green: 0.3, blue: 0.7)
+                                    ]),
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(width: geometry.size.width * participationPercentage, height: 6)
+                            .cornerRadius(3)
                     }
                 }
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .frame(height: 6)
+            }
+            
+            // Valid Until
+            HStack {
+                Image(systemName: "clock")
+                    .font(.caption2)
+                Text("Valid until \(offer.formattedValidUntil)")
+                    .font(.caption2)
+                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
             }
         }
         .padding()
-        .background(Color.purple.opacity(0.1))
+        .frame(width: 280)
+        .background(Color.white)
         .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+    }
+    
+    private func platformIcon(for platform: String) -> String {
+        switch platform {
+        case "Google": return "globe"
+        case "Apple Maps": return "applelogo"
+        case "Social Media": return "camera.fill"
+        default: return "app"
+        }
     }
 }
 
-struct VibeReview {
-    let author: String
-    let rating: Int
-    let text: String
-    let vibe: String
-    let platform: String
-    let date: String
-}
-
-struct VibeCard: View {
-    let vibe: VibeReview
+// MARK: - Empty Offers Card
+struct EmptyOffersCard: View {
+    @Binding var navigateToCreateOffer: Bool
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(spacing: 16) {
+            Image(systemName: "gift")
+                .font(.system(size: 40))
+                .foregroundColor(Color(red: 0.8, green: 0.8, blue: 0.85))
+            
+            VStack(spacing: 8) {
+                Text("No Active Offers")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
+                
+                Text("Create your first offer to attract influencers")
+                    .font(.caption)
+                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
+            }
+            
+            Button(action: { navigateToCreateOffer = true }) {
+                Text("Create First Offer")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(red: 0.4, green: 0.2, blue: 0.6), lineWidth: 1.5)
+                    )
+            }
+        }
+        .padding(.vertical, 40)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(red: 0.98, green: 0.98, blue: 0.99))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(style: StrokeStyle(lineWidth: 1, dash: [5]))
+                        .foregroundColor(Color(red: 0.8, green: 0.8, blue: 0.85))
+                )
+        )
+    }
+}
+
+// MARK: - Analytics Grid View
+struct AnalyticsGridView: View {
+    let business: FirebaseBusiness
+    @Binding var selectedTimeframe: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Section Header
             HStack {
-                Text(vibe.author)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.black)
+                Text("Performance Analytics")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
+                
+                Spacer()
+                
+                Menu {
+                    Button("Today") { selectedTimeframe = "Today" }
+                    Button("This Week") { selectedTimeframe = "This Week" }
+                    Button("This Month") { selectedTimeframe = "This Month" }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(selectedTimeframe)
+                            .font(.caption)
+                        Image(systemName: "chevron.down")
+                            .font(.caption2)
+                    }
+                    .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.5))
+                }
+            }
+            .padding(.horizontal)
+            
+            // Analytics Cards
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                AnalyticsCard(
+                    title: "Total Views",
+                    value: "\(calculateTotalViews())",
+                    change: "+23%",
+                    isPositive: true,
+                    icon: "eye.fill",
+                    color: .blue
+                )
+                
+                AnalyticsCard(
+                    title: "Engagement Rate",
+                    value: "4.2%",
+                    change: "+0.8%",
+                    isPositive: true,
+                    icon: "hand.tap.fill",
+                    color: .purple
+                )
+                
+                AnalyticsCard(
+                    title: "New Reviews",
+                    value: "\(calculateNewReviews())",
+                    change: "+2",
+                    isPositive: true,
+                    icon: "star.bubble.fill",
+                    color: .orange
+                )
+                
+                AnalyticsCard(
+                    title: "Conversion",
+                    value: "12.5%",
+                    change: "-1.2%",
+                    isPositive: false,
+                    icon: "arrow.triangle.turn.up.right.diamond.fill",
+                    color: .green
+                )
+            }
+            .padding(.horizontal)
+        }
+    }
+    
+    private func calculateTotalViews() -> String {
+        let views = 1240 + Int.random(in: -50...100)
+        return views > 1000 ? "\(views/1000).\(views%1000/100)k" : "\(views)"
+    }
+    
+    private func calculateNewReviews() -> Int {
+        return 8 + Int.random(in: -2...4)
+    }
+}
+
+// MARK: - Analytics Card
+struct AnalyticsCard: View {
+    let title: String
+    let value: String
+    let change: String
+    let isPositive: Bool
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 18))
+                    .foregroundColor(color)
                 
                 Spacer()
                 
                 HStack(spacing: 2) {
-                    ForEach(0..<5, id: \.self) { index in
-                        Image(systemName: index < vibe.rating ? "star.fill" : "star")
-                            .foregroundColor(index < vibe.rating ? .yellow : .gray.opacity(0.3))
-                            .font(.caption)
-                    }
+                    Image(systemName: isPositive ? "arrow.up.right" : "arrow.down.right")
+                        .font(.caption2)
+                    Text(change)
+                        .font(.caption2)
+                        .fontWeight(.semibold)
                 }
+                .foregroundColor(isPositive ? .green : .red)
             }
             
-            Text("\"\(vibe.text)\"")
-                .font(.caption)
-                .foregroundColor(.black)
-                .italic()
-            
-            HStack {
-                Text("Vibe: \(vibe.vibe)")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(.purple)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.purple.opacity(0.1))
-                    .cornerRadius(4)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(value)
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
                 
-                Spacer()
-                
-                Text(vibe.date)
+                Text(title)
                     .font(.caption)
-                    .foregroundColor(.gray)
+                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
             }
         }
         .padding()
-        .background(Color.white.opacity(0.7))
-        .cornerRadius(8)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
     }
 }
 
-struct BusinessAnalyticsSection: View {
+// MARK: - Reviews Card
+struct ReviewsCard: View {
     let business: FirebaseBusiness
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Image(systemName: "chart.bar.fill")
-                    .foregroundColor(.indigo)
-                Text("Business Analytics")
-                    .font(.headline)
-                    .foregroundColor(.black)
-                Spacer()
+                Image(systemName: "star.bubble.fill")
+                    .foregroundColor(.orange)
+                Text("Recent Reviews")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
             }
             
-            AnalyticsChart()
-            
-            VStack(spacing: 12) {
-                AnalyticsRow(
-                    icon: "eye.circle.fill",
-                    title: "Views Since Joining",
-                    value: "\(calculateViewsSinceJoining())",
-                    subtitle: "+12% vs last month",
-                    color: .green,
-                    isPositive: true
-                )
-                
-                AnalyticsRow(
-                    icon: "star.circle.fill",
-                    title: "Reviews This Month",
-                    value: "\(calculateRecentReviews())",
-                    subtitle: "Average rating: \(business.displayRating)",
-                    color: .yellow,
-                    isPositive: true
-                )
-                
-                AnalyticsRow(
-                    icon: "quote.bubble.fill",
-                    title: "What They're Saying",
-                    value: "\"Amazing food & vibe!\"",
-                    subtitle: "Most common words: delicious, cozy, perfect",
-                    color: .blue,
-                    isPositive: true
-                )
-            }
-        }
-        .padding()
-        .background(Color.indigo.opacity(0.1))
-        .cornerRadius(12)
-    }
-    
-    private func calculateViewsSinceJoining() -> Int {
-        // Calculate days since business creation
-        let daysSinceJoining = Calendar.current.dateComponents([.day], from: business.createdAt.dateValue(), to: Date()).day ?? 1
-        
-        // Base calculation: more views for longer presence and better rating
-        let baseViews = max(50, daysSinceJoining * 15)
-        let ratingMultiplier = (business.rating ?? 4.0) / 5.0
-        
-        return Int(Double(baseViews) * ratingMultiplier) + Int.random(in: 10...50)
-    }
-    
-    private func calculateRecentReviews() -> Int {
-        // Estimate recent reviews (could be pulled from Google Places API with real data)
-        let totalReviews = business.reviewCount ?? 0
-        return max(1, totalReviews / 5) // Roughly 20% of total reviews are recent
-    }
-}
-
-struct AnalyticsChart: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Profile Views (Last 7 Days)")
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .foregroundColor(.black)
-            
-            HStack(alignment: .bottom, spacing: 4) {
-                ForEach(0..<7, id: \.self) { day in
-                    VStack(spacing: 4) {
-                        Rectangle()
-                            .fill(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [.indigo, .purple]),
-                                    startPoint: .bottom,
-                                    endPoint: .top
-                                )
-                            )
-                            .frame(width: 20, height: CGFloat.random(in: 20...60))
-                            .cornerRadius(2)
-                        
-                        Text(dayLabel(for: day))
-                            .font(.caption2)
-                            .foregroundColor(.gray)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(business.displayRating)
+                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
+                    
+                    VStack(alignment: .leading) {
+                        HStack(spacing: 2) {
+                            ForEach(0..<5) { _ in
+                                Image(systemName: "star.fill")
+                                    .font(.caption2)
+                                    .foregroundColor(.orange)
+                            }
+                        }
+                        Text("\(business.reviewCount ?? 0) reviews")
+                            .font(.caption)
+                            .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
                     }
                 }
+                
+                Text("\"Great atmosphere and service!\"")
+                    .font(.caption)
+                    .italic()
+                    .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.5))
+                    .lineLimit(2)
             }
-            .frame(height: 80)
         }
         .padding()
-        .background(Color.white.opacity(0.7))
-        .cornerRadius(8)
-    }
-    
-    private func dayLabel(for day: Int) -> String {
-        let calendar = Calendar.current
-        let date = calendar.date(byAdding: .day, value: -6 + day, to: Date()) ?? Date()
-        let formatter = DateFormatter()
-        formatter.dateFormat = "E"
-        return formatter.string(from: date)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
     }
 }
 
-struct AnalyticsRow: View {
-    let icon: String
-    let title: String
-    let value: String
-    let subtitle: String
-    let color: Color
-    let isPositive: Bool
+// MARK: - Vibes Card
+struct VibesCard: View {
+    @Binding var isOpen: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "sparkles")
+                    .foregroundColor(.purple)
+                Text("Vibes")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
+                
+                Spacer()
+                
+                Text("3 new")
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.purple)
+                    .cornerRadius(4)
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                VibeQuickItem(text: "Instagram-Perfect", count: 12)
+                VibeQuickItem(text: "Great Ambiance", count: 8)
+                VibeQuickItem(text: "Photo Friendly", count: 5)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+    }
+}
+
+struct VibeQuickItem: View {
+    let text: String
+    let count: Int
     
     var body: some View {
         HStack {
-            Image(systemName: icon)
-                .foregroundColor(color)
-                .font(.title2)
-                .frame(width: 30)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline)
-                    .foregroundColor(.black)
-                
-                Text(value)
-                    .font(.headline)
-                    .fontWeight(.bold)
-                    .foregroundColor(.black)
-                
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundColor(isPositive ? .green : .gray)
-            }
-            
+            Text(text)
+                .font(.caption)
+                .foregroundColor(Color(red: 0.4, green: 0.4, blue: 0.5))
             Spacer()
-            
-            if isPositive {
-                Image(systemName: "arrow.up.circle.fill")
-                    .foregroundColor(.green)
-                    .font(.title2)
-            }
+            Text("\(count)")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundColor(Color(red: 0.6, green: 0.4, blue: 0.8))
         }
-        .padding()
-        .background(Color.white.opacity(0.7))
-        .cornerRadius(8)
     }
 }
 
+// MARK: - Location Card
+struct LocationCard: View {
+    let business: FirebaseBusiness
+    let mapRegion: MKCoordinateRegion
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "location.fill")
+                    .foregroundColor(.red)
+                Text("Business Location")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
+            }
+            
+            Map(coordinateRegion: .constant(mapRegion))
+                .frame(height: 150)
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color(red: 0.9, green: 0.9, blue: 0.92), lineWidth: 1)
+                )
+            
+            Text(business.address)
+                .font(.caption)
+                .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
+        }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+    }
+}
+
+// MARK: - Supporting Views
 struct StatItem: View {
     let icon: String
     let value: String
@@ -689,31 +800,18 @@ struct StatItem: View {
     }
 }
 
-struct CreateOfferButton: View {
-    @Binding var navigateToCreateOffer: Bool
-    
+// MARK: - Business Dashboard Background (for compatibility)
+struct BusinessDashboardBackground: View {
     var body: some View {
-        Button(action: {
-            navigateToCreateOffer = true
-        }) {
-            HStack(spacing: 12) {
-                Text("Create Offer - Up Your Renown!")
-                    .font(.headline)
-                Image(systemName: "plus.circle.fill")
-            }
-            .foregroundColor(.white)
-            .padding()
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [.purple, .pink]),
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-            )
-        }
+        LinearGradient(
+            gradient: Gradient(colors: [
+                Color.green.opacity(0.3),
+                Color.teal.opacity(0.4),
+                Color.blue.opacity(0.3)
+            ]),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
     }
 }

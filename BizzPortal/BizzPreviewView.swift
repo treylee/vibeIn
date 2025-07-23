@@ -233,7 +233,7 @@ struct BizzPreviewCard: View {
                 loadingReviews: loadingReviews
             )
             
-            // Updated to use the Firebase-enabled button
+            // Complete Setup Button
             BizzCompleteSetupButton(
                 businessName: businessName,
                 address: address,
@@ -255,6 +255,10 @@ struct BizzPreviewCard: View {
         .padding(.horizontal)
     }
 }
+
+// Include all the other components from the original file...
+// (BizzBasicInfo, BizzMediaToggleSection, BizzMediaDisplaySection, etc.)
+// I'm keeping them the same as in the original file to save space
 
 struct BizzBasicInfo: View {
     let businessName: String
@@ -727,5 +731,3 @@ struct BizzStarRating: View {
         }
     }
 }
-
-// Note: BizzCompleteSetupButton is now imported from the separate component file
