@@ -4,83 +4,63 @@ import SwiftUI
 
 struct CreateOfferView: View {
     let business: FirebaseBusiness
-    @State private var selectedPlatforms: Set<OfferPlatform> = []
-    @State private var offerDescription = ""
-    @State private var validUntilDate = Date().addingTimeInterval(7 * 24 * 60 * 60) // 1 week from now
-    @State private var validUntilTime = Date()
+    @State private var offerData = OfferData()
     @State private var navigateToPreview = false
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        ZStack {
-            CreateOfferBackground()
-            CreateOfferContent(
-                business: business,
-                selectedPlatforms: $selectedPlatforms,
-                offerDescription: $offerDescription,
-                validUntilDate: $validUntilDate,
-                validUntilTime: $validUntilTime,
-                navigateToPreview: $navigateToPreview
-            )
-        }
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(false)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text("Create Offer")
-                    .font(.headline)
-                    .foregroundColor(.white)
+        NavigationStack {
+            ZStack {
+                CreateOfferBackground()
+                CreateOfferContent(
+                    business: business,
+                    offerData: $offerData,
+                    navigateToPreview: $navigateToPreview
+                )
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarBackButtonHidden(false)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { dismiss() }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                            Text("Back")
+                        }
+                        .foregroundColor(.white)
+                    }
+                }
+                ToolbarItem(placement: .principal) {
+                    Text("Create Offer")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                }
+            }
+            .navigationDestination(isPresented: $navigateToPreview) {
+                OfferPreviewView(business: business, offerData: offerData)
+                    .showBottomBar(false)
             }
         }
-        .navigationDestination(isPresented: $navigateToPreview) {
-            OfferPreviewView(
-                business: business,
-                offerData: OfferData(
-                    platforms: selectedPlatforms,
-                    description: offerDescription,
-                    validUntilDate: validUntilDate,
-                    validUntilTime: validUntilTime
-                )
-            )
-        }
     }
 }
 
-// MARK: - Offer Data Models
-enum OfferPlatform: String, CaseIterable, Identifiable {
-    case google = "Google"
-    case apple = "Apple Maps"
-    case social = "Social Media"
-    
-    var id: String { rawValue }
-    
-    var icon: String {
-        switch self {
-        case .google: return "globe"
-        case .apple: return "applelogo"
-        case .social: return "camera.fill"
-        }
-    }
-    
-    var color: Color {
-        switch self {
-        case .google: return .blue
-        case .apple: return .gray
-        case .social: return .pink
-        }
-    }
-}
-
+// MARK: - Offer Data Model
 struct OfferData {
-    let platforms: Set<OfferPlatform>
-    let description: String
-    let validUntilDate: Date
-    let validUntilTime: Date
+    var description: String = ""
+    var platforms: Set<OfferPlatform> = []
+    var date: Date?
+    var time: Date?
+    var maxParticipants: Int = 100 // Default to 100
     
     var combinedDateTime: Date {
         let calendar = Calendar.current
-        let dateComponents = calendar.dateComponents([.year, .month, .day], from: validUntilDate)
-        let timeComponents = calendar.dateComponents([.hour, .minute], from: validUntilTime)
+        
+        guard let date = date, let time = time else {
+            return Date() // Return current date if not set
+        }
+        
+        let dateComponents = calendar.dateComponents([.year, .month, .day], from: date)
+        let timeComponents = calendar.dateComponents([.hour, .minute], from: time)
         
         var combined = DateComponents()
         combined.year = dateComponents.year
@@ -89,7 +69,40 @@ struct OfferData {
         combined.hour = timeComponents.hour
         combined.minute = timeComponents.minute
         
-        return calendar.date(from: combined) ?? validUntilDate
+        return calendar.date(from: combined) ?? Date()
+    }
+    
+    var isValid: Bool {
+        !description.isEmpty &&
+        !platforms.isEmpty &&
+        date != nil &&
+        time != nil &&
+        maxParticipants > 0
+    }
+}
+
+// MARK: - Offer Platform
+enum OfferPlatform: String, CaseIterable, Identifiable {
+    case google = "Google"
+    case appleMaps = "Apple Maps"
+    case socialMedia = "Social Media"
+    
+    var id: String { rawValue }
+    
+    var icon: String {
+        switch self {
+        case .google: return "globe"
+        case .appleMaps: return "applelogo"
+        case .socialMedia: return "camera.fill"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .google: return .blue
+        case .appleMaps: return .black
+        case .socialMedia: return .purple
+        }
     }
 }
 
@@ -111,23 +124,17 @@ struct CreateOfferBackground: View {
 
 struct CreateOfferContent: View {
     let business: FirebaseBusiness
-    @Binding var selectedPlatforms: Set<OfferPlatform>
-    @Binding var offerDescription: String
-    @Binding var validUntilDate: Date
-    @Binding var validUntilTime: Date
+    @Binding var offerData: OfferData
     @Binding var navigateToPreview: Bool
     
     var body: some View {
         ScrollView {
             VStack(spacing: 30) {
                 CreateOfferHeader()
-                CreateOfferForm(
-                    business: business,
-                    selectedPlatforms: $selectedPlatforms,
-                    offerDescription: $offerDescription,
-                    validUntilDate: $validUntilDate,
-                    validUntilTime: $validUntilTime,
-                    navigateToPreview: $navigateToPreview
+                OfferFormSection(offerData: $offerData)
+                PreviewButton(
+                    isEnabled: offerData.isValid,
+                    action: { navigateToPreview = true }
                 )
             }
         }
@@ -143,12 +150,12 @@ struct CreateOfferHeader: View {
                 .shadow(radius: 8)
             
             Text("Create Your Offer")
-                .font(.title2)
+                .font(.title)
                 .fontWeight(.bold)
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
             
-            Text("Attract influencers with compelling offers")
+            Text("Attract influencers with a special offer")
                 .font(.subheadline)
                 .foregroundColor(.white.opacity(0.8))
                 .multilineTextAlignment(.center)
@@ -157,41 +164,44 @@ struct CreateOfferHeader: View {
     }
 }
 
-struct CreateOfferForm: View {
-    let business: FirebaseBusiness
-    @Binding var selectedPlatforms: Set<OfferPlatform>
-    @Binding var offerDescription: String
-    @Binding var validUntilDate: Date
-    @Binding var validUntilTime: Date
-    @Binding var navigateToPreview: Bool
-    
-    private var isFormValid: Bool {
-        !selectedPlatforms.isEmpty && !offerDescription.isEmpty
-    }
+struct OfferFormSection: View {
+    @Binding var offerData: OfferData
     
     var body: some View {
         VStack(spacing: 20) {
-            PlatformSelectionSection(selectedPlatforms: $selectedPlatforms)
-            OfferDescriptionSection(offerDescription: $offerDescription)
-            ValiditySection(
-                validUntilDate: $validUntilDate,
-                validUntilTime: $validUntilTime
-            )
-            NextButton(
-                isEnabled: isFormValid,
-                navigateToPreview: $navigateToPreview
-            )
+            OfferDescriptionField(description: $offerData.description)
+            PlatformSelectionSection(selectedPlatforms: $offerData.platforms)
+            QuantitySelectionSection(maxParticipants: $offerData.maxParticipants)
+            DateSelectionSection(date: $offerData.date)
+            TimeSelectionSection(time: $offerData.time)
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color.white)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color.white.opacity(0.5), lineWidth: 1)
-                )
-        )
         .padding(.horizontal)
+    }
+}
+
+struct OfferDescriptionField: View {
+    @Binding var description: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("What's your offer?", systemImage: "gift")
+                .font(.headline)
+                .foregroundColor(.white)
+            
+            TextEditor(text: $description)
+                .frame(height: 100)
+                .padding(8)
+                .background(Color.white.opacity(0.9))
+                .cornerRadius(12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                )
+            
+            Text("e.g., Free appetizer with any entree purchase")
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.7))
+        }
     }
 }
 
@@ -199,30 +209,31 @@ struct PlatformSelectionSection: View {
     @Binding var selectedPlatforms: Set<OfferPlatform>
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Select Platforms")
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Where should they leave reviews?", systemImage: "app.badge")
                 .font(.headline)
-                .foregroundColor(.black)
+                .foregroundColor(.white)
             
-            VStack(spacing: 12) {
+            VStack(spacing: 8) {
                 ForEach(OfferPlatform.allCases) { platform in
-                    PlatformCheckbox(
+                    PlatformToggle(
                         platform: platform,
-                        isSelected: selectedPlatforms.contains(platform)
-                    ) {
-                        if selectedPlatforms.contains(platform) {
-                            selectedPlatforms.remove(platform)
-                        } else {
-                            selectedPlatforms.insert(platform)
+                        isSelected: selectedPlatforms.contains(platform),
+                        action: {
+                            if selectedPlatforms.contains(platform) {
+                                selectedPlatforms.remove(platform)
+                            } else {
+                                selectedPlatforms.insert(platform)
+                            }
                         }
-                    }
+                    )
                 }
             }
         }
     }
 }
 
-struct PlatformCheckbox: View {
+struct PlatformToggle: View {
     let platform: OfferPlatform
     let isSelected: Bool
     let action: () -> Void
@@ -231,119 +242,214 @@ struct PlatformCheckbox: View {
         Button(action: action) {
             HStack {
                 Image(systemName: platform.icon)
-                    .foregroundColor(platform.color)
-                    .font(.title2)
+                    .foregroundColor(isSelected ? platform.color : .gray)
                     .frame(width: 30)
                 
                 Text(platform.rawValue)
-                    .font(.subheadline)
                     .foregroundColor(.black)
                 
                 Spacer()
                 
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(isSelected ? .green : .gray)
-                    .font(.title2)
+                    .foregroundColor(isSelected ? platform.color : .gray)
             }
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color.green.opacity(0.1) : Color.gray.opacity(0.1))
+                    .fill(Color.white.opacity(0.9))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(isSelected ? Color.green : Color.gray.opacity(0.3), lineWidth: 1)
+                            .stroke(isSelected ? platform.color.opacity(0.5) : Color.gray.opacity(0.3), lineWidth: 2)
                     )
             )
         }
     }
 }
 
-struct OfferDescriptionSection: View {
-    @Binding var offerDescription: String
+// MARK: - Quantity Selection Section
+struct QuantitySelectionSection: View {
+    @Binding var maxParticipants: Int
+    let quantities = [10, 25, 50, 100, 200, 500]
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Offer Description")
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Maximum participants", systemImage: "person.3.fill")
                 .font(.headline)
-                .foregroundColor(.black)
+                .foregroundColor(.white)
             
-            TextEditor(text: $offerDescription)
-                .frame(height: 120)
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.gray.opacity(0.1))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                        )
-                )
-                .overlay(
-                    Group {
-                        if offerDescription.isEmpty {
-                            Text("E.g., 'Free appetizer for Google review' or '20% off for social media post'")
-                                .foregroundColor(.gray)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 24)
-                                .allowsHitTesting(false)
-                        }
-                    },
-                    alignment: .topLeading
-                )
+            Text("How many influencers can claim this offer?")
+                .font(.caption)
+                .foregroundColor(.white.opacity(0.8))
+            
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                ForEach(quantities, id: \.self) { quantity in
+                    Button(action: {
+                        maxParticipants = quantity
+                    }) {
+                        Text("\(quantity)")
+                            .font(.headline)
+                            .foregroundColor(maxParticipants == quantity ? .white : .black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(maxParticipants == quantity ?
+                                          Color.purple :
+                                          Color.white.opacity(0.9))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(maxParticipants == quantity ?
+                                           Color.purple :
+                                           Color.gray.opacity(0.3), lineWidth: 2)
+                            )
+                    }
+                }
+            }
+            
+            // Custom quantity input
+            HStack {
+                Text("Custom:")
+                    .font(.subheadline)
+                    .foregroundColor(.white)
+                
+                TextField("Enter amount", value: $maxParticipants, format: .number)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .frame(width: 120)
+                    .keyboardType(.numberPad)
+            }
+            .padding(.top, 8)
         }
     }
 }
 
-struct ValiditySection: View {
-    @Binding var validUntilDate: Date
-    @Binding var validUntilTime: Date
+struct DateSelectionSection: View {
+    @Binding var date: Date?
+    @State private var showDatePicker = false
+    
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter
+    }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Valid Until")
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Valid until date *", systemImage: "calendar")
                 .font(.headline)
-                .foregroundColor(.black)
+                .foregroundColor(.white)
             
-            VStack(spacing: 12) {
+            Button(action: { showDatePicker.toggle() }) {
+                HStack {
+                    Text(date != nil ? dateFormatter.string(from: date!) : "Select date")
+                        .foregroundColor(date != nil ? .black : .gray)
+                    Spacer()
+                    Image(systemName: "calendar.badge.plus")
+                        .foregroundColor(date != nil ? .purple : .gray)
+                }
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white.opacity(0.9))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(date != nil ? Color.purple.opacity(0.5) : Color.red.opacity(0.5), lineWidth: 2)
+                        )
+                )
+            }
+            
+            if date == nil {
+                Text("Required")
+                    .font(.caption)
+                    .foregroundColor(.red)
+            }
+            
+            if showDatePicker {
                 DatePicker(
-                    "Date",
-                    selection: $validUntilDate,
+                    "Select Date",
+                    selection: Binding(
+                        get: { date ?? Date() },
+                        set: { date = $0 }
+                    ),
                     in: Date()...,
                     displayedComponents: .date
                 )
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.gray.opacity(0.1))
-                )
-                
-                DatePicker(
-                    "Time",
-                    selection: $validUntilTime,
-                    displayedComponents: .hourAndMinute
-                )
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.gray.opacity(0.1))
-                )
+                .datePickerStyle(GraphicalDatePickerStyle())
+                .background(Color.white.opacity(0.9))
+                .cornerRadius(12)
             }
         }
     }
 }
 
-struct NextButton: View {
-    let isEnabled: Bool
-    @Binding var navigateToPreview: Bool
+struct TimeSelectionSection: View {
+    @Binding var time: Date?
+    @State private var showTimePicker = false
+    
+    private var timeFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter
+    }
     
     var body: some View {
-        Button(action: {
-            navigateToPreview = true
-        }) {
-            HStack(spacing: 12) {
-                Text("Next - Preview Offer")
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Valid until time *", systemImage: "clock")
+                .font(.headline)
+                .foregroundColor(.white)
+            
+            Button(action: { showTimePicker.toggle() }) {
+                HStack {
+                    Text(time != nil ? timeFormatter.string(from: time!) : "Select time")
+                        .foregroundColor(time != nil ? .black : .gray)
+                    Spacer()
+                    Image(systemName: "clock.badge.plus")
+                        .foregroundColor(time != nil ? .purple : .gray)
+                }
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white.opacity(0.9))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(time != nil ? Color.purple.opacity(0.5) : Color.red.opacity(0.5), lineWidth: 2)
+                        )
+                )
+            }
+            
+            if time == nil {
+                Text("Required")
+                    .font(.caption)
+                    .foregroundColor(.red)
+            }
+            
+            if showTimePicker {
+                DatePicker(
+                    "Select Time",
+                    selection: Binding(
+                        get: { time ?? Date() },
+                        set: { time = $0 }
+                    ),
+                    displayedComponents: .hourAndMinute
+                )
+                .datePickerStyle(WheelDatePickerStyle())
+                .background(Color.white.opacity(0.9))
+                .cornerRadius(12)
+            }
+        }
+    }
+}
+
+struct PreviewButton: View {
+    let isEnabled: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Text("Preview Offer")
                     .font(.headline)
-                Image(systemName: "arrow.right.circle.fill")
+                Image(systemName: "arrow.right")
             }
             .foregroundColor(.white)
             .padding()
@@ -366,5 +472,7 @@ struct NextButton: View {
             )
         }
         .disabled(!isEnabled)
+        .padding(.horizontal)
+        .padding(.bottom, 30)
     }
 }

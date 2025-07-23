@@ -69,7 +69,7 @@ struct OfferPreviewView: View {
             validUntil: Timestamp(date: offerData.combinedDateTime),
             isActive: true,
             participantCount: 0,
-            maxParticipants: 100
+            maxParticipants: offerData.maxParticipants
         )
         
         print("🚀 Creating offer for businessId: \(business.id ?? "no-id")")
