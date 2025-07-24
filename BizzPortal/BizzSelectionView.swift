@@ -10,6 +10,7 @@ struct BizzSelectionView: View {
     @State private var isSearching = false
     @State private var navigateToPreview = false
     @State private var showingResults = false
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         ZStack {
@@ -27,8 +28,11 @@ struct BizzSelectionView: View {
             
             VStack(spacing: 0) {
                 // Enhanced Header
-                EnhancedBizzHeader()
-                    .padding(.bottom, 10)
+                EnhancedBizzHeader(
+                    isSearching: isSearching || showingResults,
+                    hasSearchText: !searchText.isEmpty
+                )
+                .padding(.bottom, 10)
                 
                 VStack(spacing: 20) {
                     // Enhanced Search Bar
@@ -64,7 +68,8 @@ struct BizzSelectionView: View {
                 .padding(.horizontal)
             }
         }
-        .navigationBarBackButtonHidden(true)
+        .navigationBarHidden(true)
+        .showBottomBar(true) // Show the bottom navigation bar
         .navigationDestination(isPresented: $navigateToPreview) {
             if let place = selectedPlace {
                 BizzPreviewView(
@@ -116,6 +121,9 @@ struct BizzSelectionView: View {
 
 // MARK: - Enhanced Header
 struct EnhancedBizzHeader: View {
+    let isSearching: Bool
+    let hasSearchText: Bool
+    
     var body: some View {
         VStack(spacing: 12) {
             HStack {
@@ -126,29 +134,27 @@ struct EnhancedBizzHeader: View {
                     Text("Business")
                         .font(.largeTitle)
                         .fontWeight(.bold)
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.blue, .purple],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
+                        .foregroundColor(Color(red: 254/255, green: 61/255, blue: 87/255)) // Tinder red
                 }
                 
                 Spacer()
                 
-                Image(systemName: "building.2.crop.circle.fill")
-                    .font(.system(size: 50))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.blue, .purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                if hasSearchText || isSearching {
+                    Image(systemName: "magnifyingglass.circle")
+                        .font(.system(size: 50))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.blue, .purple],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                    .shadow(color: .purple.opacity(0.3), radius: 8)
+                        .shadow(color: .purple.opacity(0.3), radius: 8)
+                        .transition(.scale.combined(with: .opacity))
+                }
             }
             .padding(.horizontal, 20)
+            .animation(.easeInOut(duration: 0.3), value: hasSearchText)
             
             Text("Search for your business on Google")
                 .font(.subheadline)
@@ -199,7 +205,7 @@ struct EnhancedBizzSearchBar: View {
             }
             .padding()
             .background(Color.white)
-            .cornerRadius(12)
+            .cornerRadius(25) // More rounded
             .shadow(color: Color.black.opacity(0.05), radius: 5, y: 2)
             
             if !searchText.isEmpty {
@@ -363,7 +369,7 @@ struct BizzNoResultsView: View {
     
     var body: some View {
         VStack(spacing: 20) {
-            Image(systemName: "building.2.crop.circle.badge.xmark")
+            Image(systemName: "exclamationmark.circle")
                 .font(.system(size: 60))
                 .foregroundColor(.gray.opacity(0.5))
             
@@ -405,28 +411,31 @@ struct EnhancedBizzEmptyStateView: View {
                     .multilineTextAlignment(.center)
             }
             
-            // Feature Cards
-            VStack(spacing: 16) {
-                FeatureHighlightCard(
-                    icon: "gift.fill",
-                    title: "Create Offers",
-                    description: "Design compelling offers",
-                    color: .purple
-                )
-                
-                FeatureHighlightCard(
-                    icon: "chart.line.uptrend.xyaxis",
-                    title: "Track Performance",
-                    description: "Monitor your success",
-                    color: .blue
-                )
-                
-                FeatureHighlightCard(
-                    icon: "person.3.fill",
-                    title: "Connect",
-                    description: "Build relationships",
-                    color: .pink
-                )
+            // Feature Cards - No background
+            VStack(spacing: 0) {
+                HStack(spacing: 16) {
+                    FeatureHighlightCard(
+                        icon: "gift.fill",
+                        title: "Create Offers",
+                        description: "Design compelling offers",
+                        color: .purple
+                    )
+                    
+                    FeatureHighlightCard(
+                        icon: "chart.line.uptrend.xyaxis",
+                        title: "Track Performance",
+                        description: "Monitor success",
+                        color: .blue
+                    )
+                    
+                    FeatureHighlightCard(
+                        icon: "person.3.fill",
+                        title: "Connect",
+                        description: "Build relationships",
+                        color: .pink
+                    )
+                }
+                .padding(.horizontal)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -441,27 +450,28 @@ struct FeatureHighlightCard: View {
     let color: Color
     
     var body: some View {
-        HStack(spacing: 16) {
+        VStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.title2)
-                .foregroundColor(.white)
+                .foregroundColor(color)
                 .frame(width: 50, height: 50)
-                .background(color)
+                .background(color.opacity(0.15))
                 .cornerRadius(12)
             
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                Text(description)
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
+            Text(title)
+                .font(.footnote)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+                .multilineTextAlignment(.center)
             
-            Spacer()
+            Text(description)
+                .font(.caption2)
+                .foregroundColor(.gray)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.05), radius: 5, y: 2)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 8)
     }
 }

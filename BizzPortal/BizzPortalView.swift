@@ -122,17 +122,17 @@ struct PortalReviewBubbles: View {
     let activeReviews: [PortalVibeReview]
     
     var body: some View {
-        // Confined area for bubbles - middle of screen
+        // Confined area for bubbles - very center of screen
         GeometryReader { geometry in
-            let bubbleZoneHeight: CGFloat = 200
+            let bubbleZoneHeight: CGFloat = 150 // Smaller zone
             let bubbleZoneY = geometry.size.height / 2 - bubbleZoneHeight / 2
             
             ZStack {
-                // Invisible container to define bubble area
-                Rectangle()
-                    .fill(Color.clear)
-                    .frame(height: bubbleZoneHeight)
-                    .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+                // Debug: Uncomment to see bubble zone
+                // Rectangle()
+                //     .fill(Color.red.opacity(0.1))
+                //     .frame(width: geometry.size.width - 100, height: bubbleZoneHeight)
+                //     .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
                 
                 ForEach(activeReviews) { review in
                     FloatingPortalReviewBubble(
@@ -344,7 +344,7 @@ struct CreateBusinessSection: View {
         VStack(spacing: 20) {
             WelcomeCard()
             
-            NavigationLink(destination: BizzSelectionView().showBottomBar(false)) {
+            NavigationLink(destination: BizzSelectionView().showBottomBar(true)) {
                 CreateBusinessButton()
             }
         }
@@ -367,7 +367,7 @@ struct WelcomeCard: View {
             
             HStack {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Ready to grow?")
+                    Text("Create Now a Larger Online Presence")
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(.black)
@@ -424,7 +424,7 @@ struct WelcomeCard: View {
 struct CreateBusinessButton: View {
     var body: some View {
         HStack {
-            Text("Create Your Business")
+            Text("Ready to grow?")
                 .font(.headline)
                 .foregroundColor(.white)
             
@@ -435,14 +435,10 @@ struct CreateBusinessButton: View {
         .frame(maxWidth: .infinity)
         .padding()
         .background(
-            LinearGradient(
-                colors: [.green, .teal],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
+            Color(red: 254/255, green: 61/255, blue: 87/255) // Tinder red
         )
         .cornerRadius(16)
-        .shadow(color: Color.green.opacity(0.3), radius: 10, y: 5)
+        .shadow(color: Color(red: 254/255, green: 61/255, blue: 87/255).opacity(0.3), radius: 10, y: 5)
     }
 }
 
@@ -648,6 +644,8 @@ struct FloatingPortalReviewBubble: View {
     @State private var position: CGPoint = .zero
     @State private var opacity: Double = 0
     @State private var scale: Double = 0.8
+    @State private var offsetX: CGFloat = 0
+    @State private var offsetY: CGFloat = 0
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -681,31 +679,34 @@ struct FloatingPortalReviewBubble: View {
         .shadow(color: Color.purple.opacity(0.3), radius: 10, y: 5)
         .scaleEffect(scale)
         .opacity(opacity)
-        .position(position)
+        .position(x: containerWidth / 2 + offsetX, y: bubbleZoneY + bubbleZoneHeight / 2 + offsetY)
         .onAppear {
-            // Position within the defined bubble zone
+            // Start at center
             position = CGPoint(
-                x: CGFloat.random(in: 60...(containerWidth - 60)),
-                y: bubbleZoneY + CGFloat.random(in: 20...(bubbleZoneHeight - 20))
+                x: containerWidth / 2,
+                y: bubbleZoneY + bubbleZoneHeight / 2
             )
             
+            // Fade in
             withAnimation(.easeOut(duration: 0.5)) {
                 opacity = 1.0
                 scale = 1.0
             }
             
-            // Gentle horizontal floating only
-            withAnimation(
-                .easeInOut(duration: Double.random(in: 4...6))
-                .repeatForever(autoreverses: true)
-            ) {
-                position.x += CGFloat.random(in: -20...20)
+            // Subtle drift animation - pick a random direction
+            let angle = Double.random(in: 0...(2 * .pi))
+            let distance: CGFloat = 30 // Only 30 points of movement
+            
+            withAnimation(.easeInOut(duration: 6)) {
+                offsetX = cos(angle) * distance
+                offsetY = sin(angle) * distance
             }
             
-            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+            // Fade out after 8 seconds
+            DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
                 withAnimation(.easeOut(duration: 1.0)) {
                     opacity = 0
-                    scale = 0.8
+                    scale = 0.9
                 }
             }
         }

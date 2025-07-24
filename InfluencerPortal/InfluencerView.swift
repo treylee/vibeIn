@@ -1,7 +1,7 @@
 // Path: vibeIn/InfluencerPortal/InfluencerView.swift
 
 import SwiftUI
-
+// this view is a tabbed view so if you want to change the home screen change the influencersearchview..note
 struct InfluencerView: View {
     @State private var selectedTab: Int
     
