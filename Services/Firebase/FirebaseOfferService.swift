@@ -39,9 +39,12 @@ class FirebaseOfferService: ObservableObject {
                     try? document.data(as: FirebaseOffer.self)
                 } ?? []
                 
+                // Filter out expired offers
+                let activeOffers = offers.filter { !$0.isExpired }
+                
                 DispatchQueue.main.async {
-                    self?.offers = offers
-                    print("🔄 Firebase: Updated to \(offers.count) active offers")
+                    self?.offers = activeOffers
+                    print("🔄 Firebase: Updated to \(activeOffers.count) active offers")
                 }
             }
     }
@@ -84,8 +87,48 @@ class FirebaseOfferService: ObservableObject {
         }
     }
     
-    // MARK: - Join Offer
+    // MARK: - Join Offer (UPDATED)
     func joinOffer(
+        offerId: String,
+        businessId: String,
+        influencerId: String,
+        influencerName: String,
+        platform: String,
+        completion: @escaping (Result<String, Error>) -> Void
+    ) {
+        print("🎯 Attempting to join offer: \(offerId)")
+        
+        // First, check if the influencer has already joined this offer
+        db.collection(participationsCollection)
+            .whereField("offerId", isEqualTo: offerId)
+            .whereField("influencerId", isEqualTo: influencerId)
+            .getDocuments { [weak self] snapshot, error in
+                if let error = error {
+                    completion(.failure(error))
+                    return
+                }
+                
+                // Check if already joined
+                if let existingParticipation = snapshot?.documents.first {
+                    print("⚠️ Influencer already joined this offer")
+                    completion(.failure(NSError(domain: "OfferService", code: 1001, userInfo: [NSLocalizedDescriptionKey: "You have already joined this offer"])))
+                    return
+                }
+                
+                // If not joined, proceed to join
+                self?.createParticipation(
+                    offerId: offerId,
+                    businessId: businessId,
+                    influencerId: influencerId,
+                    influencerName: influencerName,
+                    platform: platform,
+                    completion: completion
+                )
+            }
+    }
+    
+    // MARK: - Create Participation
+    private func createParticipation(
         offerId: String,
         businessId: String,
         influencerId: String,
@@ -113,16 +156,27 @@ class FirebaseOfferService: ObservableObject {
             "proofSubmitted": participation.proofSubmitted
         ]
         
+        // Use a batch write to ensure both operations succeed or fail together
+        let batch = db.batch()
+        
         // Add participation record
-        db.collection(participationsCollection).addDocument(data: participationData) { [weak self] error in
+        let participationRef = db.collection(participationsCollection).document()
+        batch.setData(participationData, forDocument: participationRef)
+        
+        // Update offer participant count
+        let offerRef = db.collection(offersCollection).document(offerId)
+        batch.updateData([
+            "participantCount": FieldValue.increment(Int64(1))
+        ], forDocument: offerRef)
+        
+        // Commit the batch
+        batch.commit { error in
             if let error = error {
+                print("❌ Error joining offer: \(error.localizedDescription)")
                 completion(.failure(error))
-                return
-            }
-            
-            // Update offer participant count
-            self?.incrementParticipantCount(offerId: offerId) { result in
-                completion(result)
+            } else {
+                print("✅ Successfully joined offer and incremented count")
+                completion(.success("Successfully joined the offer!"))
             }
         }
     }
@@ -161,38 +215,59 @@ class FirebaseOfferService: ObservableObject {
             }
     }
     
-    // MARK: - Get Active Offers
-    func getActiveOffers(completion: @escaping ([FirebaseOffer]) -> Void) {
-        db.collection(offersCollection)
-            .whereField("isActive", isEqualTo: true)
-            .whereField("validUntil", isGreaterThan: Timestamp())
-            .order(by: "createdAt", descending: true)
-            .getDocuments { snapshot, error in
+    // MARK: - Get Active Offers for Influencer
+    func getInfluencerActiveOffers(influencerId: String, completion: @escaping ([FirebaseOffer]) -> Void) {
+        print("🔍 Getting active offers for influencer: \(influencerId)")
+        
+        // First get all participations for this influencer
+        db.collection(participationsCollection)
+            .whereField("influencerId", isEqualTo: influencerId)
+            .whereField("isCompleted", isEqualTo: false)
+            .getDocuments { [weak self] snapshot, error in
                 if let error = error {
-                    print("❌ Error fetching active offers: \(error.localizedDescription)")
+                    print("❌ Error fetching participations: \(error.localizedDescription)")
                     completion([])
                     return
                 }
                 
-                let offers = snapshot?.documents.compactMap { document in
-                    try? document.data(as: FirebaseOffer.self)
-                } ?? []
+                let offerIds = snapshot?.documents.compactMap { $0.data()["offerId"] as? String } ?? []
                 
-                completion(offers)
+                if offerIds.isEmpty {
+                    completion([])
+                    return
+                }
+                
+                // Now fetch the actual offers
+                self?.db.collection(self?.offersCollection ?? "offers")
+                    .whereField(FieldPath.documentID(), in: offerIds)
+                    .getDocuments { snapshot, error in
+                        if let error = error {
+                            print("❌ Error fetching offers: \(error.localizedDescription)")
+                            completion([])
+                            return
+                        }
+                        
+                        let offers = snapshot?.documents.compactMap { document in
+                            try? document.data(as: FirebaseOffer.self)
+                        } ?? []
+                        
+                        // Filter out expired offers
+                        let activeOffers = offers.filter { !$0.isExpired }
+                        
+                        print("✅ Found \(activeOffers.count) active offers for influencer")
+                        completion(activeOffers)
+                    }
             }
     }
     
-    // MARK: - Private Methods
-    private func incrementParticipantCount(offerId: String, completion: @escaping (Result<String, Error>) -> Void) {
-        db.collection(offersCollection).document(offerId).updateData([
-            "participantCount": FieldValue.increment(Int64(1))
-        ]) { error in
-            if let error = error {
-                completion(.failure(error))
-            } else {
-                completion(.success("Joined offer successfully"))
+    // MARK: - Check if Influencer Joined Offer
+    func hasInfluencerJoinedOffer(influencerId: String, offerId: String, completion: @escaping (Bool) -> Void) {
+        db.collection(participationsCollection)
+            .whereField("offerId", isEqualTo: offerId)
+            .whereField("influencerId", isEqualTo: influencerId)
+            .getDocuments { snapshot, error in
+                completion(!(snapshot?.documents.isEmpty ?? true))
             }
-        }
     }
     
     // MARK: - Deactivate Expired Offers
@@ -202,16 +277,16 @@ class FirebaseOfferService: ObservableObject {
         db.collection(offersCollection)
             .whereField("isActive", isEqualTo: true)
             .whereField("validUntil", isLessThan: now)
-            .getDocuments { snapshot, error in
+            .getDocuments { [weak self] snapshot, error in
                 guard let documents = snapshot?.documents else { return }
                 
-                let batch = self.db.batch()
+                let batch = self?.db.batch()
                 
                 for document in documents {
-                    batch.updateData(["isActive": false], forDocument: document.reference)
+                    batch?.updateData(["isActive": false], forDocument: document.reference)
                 }
                 
-                batch.commit { error in
+                batch?.commit { error in
                     if let error = error {
                         print("❌ Error deactivating expired offers: \(error.localizedDescription)")
                     } else {

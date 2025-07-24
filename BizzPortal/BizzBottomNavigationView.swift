@@ -267,20 +267,6 @@ struct VibeTabButton: View {
                             .scaleEffect(isPressed ? 0.95 : 1.0)
                     }
                     
-                    // Show pressed state for dashboard tap
-                    if isPressed && tab == .dashboard {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    gradient: Gradient(colors: tab.vibeColor.map { $0.opacity(0.3) }),
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 45, height: 45)
-                            .blur(radius: 8)
-                    }
-                    
                     Image(systemName: tab.icon)
                         .font(.system(size: isSelected ? 24 : 20, weight: .medium, design: .rounded))
                         .foregroundStyle(
@@ -289,9 +275,7 @@ struct VibeTabButton: View {
                             LinearGradient(colors: [Color.gray.opacity(0.6)], startPoint: .top, endPoint: .bottom)
                         )
                         .scaleEffect(isSelected ? 1.0 : 0.9)
-                        .scaleEffect(isPressed ? 1.2 : 1.0)
                         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
-                        .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressed)
                 }
                 .frame(width: 60, height: 32)
                 
@@ -303,20 +287,14 @@ struct VibeTabButton: View {
                         LinearGradient(colors: [Color.gray.opacity(0.6)], startPoint: .top, endPoint: .bottom)
                     )
                     .opacity(isSelected ? 1.0 : 0.7)
-                    .scaleEffect(isPressed ? 0.9 : 1.0)
             }
             .frame(maxWidth: .infinity)
+            .scaleEffect(isPressed ? 0.95 : 1.0)
         }
         .disabled(!isEnabled)
         .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity, pressing: { pressing in
             withAnimation(.easeInOut(duration: 0.1)) {
                 isPressed = pressing
-                
-                // Add stronger haptic feedback when pressing dashboard
-                if pressing && tab == .dashboard && isEnabled {
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                    impactFeedback.impactOccurred()
-                }
             }
         }, perform: {})
     }
@@ -339,100 +317,7 @@ extension View {
 }
 
 // MARK: - Search View
-struct BizzSearchView: View {
-    @State private var searchText = ""
-    @EnvironmentObject var navigationState: BizzNavigationState
-    
-    var body: some View {
-        ZStack {
-            // Vibe gradient background
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color.pink.opacity(0.2),
-                    Color.purple.opacity(0.3),
-                    Color.orange.opacity(0.2)
-                ]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-            
-            VStack(spacing: 30) {
-                VStack(spacing: 16) {
-                    ZStack {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.pink.opacity(0.3), Color.purple.opacity(0.3)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 100, height: 100)
-                            .blur(radius: 20)
-                        
-                        Image(systemName: "sparkle.magnifyingglass")
-                            .font(.system(size: 60, weight: .light))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.pink, .purple],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                    }
-                    
-                    Text("Search Coming Soon")
-                        .font(.system(size: 28, weight: .semibold, design: .rounded))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.pink, .purple],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                    
-                    Text("Discover amazing vibes near you")
-                        .font(.system(size: 16, design: .rounded))
-                        .foregroundColor(.gray)
-                }
-                .padding(.top, 80)
-                
-                // Search Preview
-                VStack(spacing: 16) {
-                    HStack {
-                        Image(systemName: "sparkle.magnifyingglass")
-                            .foregroundColor(.pink.opacity(0.6))
-                        TextField("Search for vibes...", text: $searchText)
-                            .foregroundColor(.black)
-                            .disabled(true)
-                    }
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(Color.white.opacity(0.9))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 20)
-                                    .stroke(
-                                        LinearGradient(
-                                            colors: [Color.pink.opacity(0.3), Color.purple.opacity(0.3)],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        ),
-                                        lineWidth: 1
-                                    )
-                            )
-                    )
-                    .shadow(color: Color.pink.opacity(0.1), radius: 10, y: 5)
-                }
-                .padding(.horizontal, 40)
-                
-                Spacer()
-            }
-        }
-        .padding(.bottom, 80)
-    }
-}
+// BizzSearchView is defined in BizzSearchView.swift
 
 // MARK: - Dashboard Placeholder
 struct BizzDashboardPlaceholder: View {

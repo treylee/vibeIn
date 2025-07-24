@@ -5,46 +5,50 @@ import SwiftUI
 struct BizzPortalView: View {
     @StateObject private var userService = FirebaseUserService.shared
     @StateObject private var businessService = FirebaseBusinessService.shared
-    @State private var searchText = ""
     @State private var navigateToSearch = false
     @State private var navigateToDashboard = false
     @State private var userBusiness: FirebaseBusiness?
+    @State private var activeReviews: [PortalVibeReview] = []
+    @State private var reviewTimer: Timer?
     
-    // Make navigation state optional to handle cases where it's not provided
+    // Sample vibe reviews for the portal
+    let sampleReviews = [
+        PortalVibeReview(text: "This platform changed my business! 🚀", author: "@bizz_owner1"),
+        PortalVibeReview(text: "Connected with amazing influencers! 💯", author: "@restaurant_pro"),
+        PortalVibeReview(text: "Our sales doubled in just 2 months! 📈", author: "@cafe_vibes"),
+        PortalVibeReview(text: "Best decision for our business growth! ⭐", author: "@retail_guru"),
+        PortalVibeReview(text: "The vibe network is incredible! 🌟", author: "@fitness_studio"),
+        PortalVibeReview(text: "Game changer for local businesses! 🎯", author: "@beauty_salon"),
+        PortalVibeReview(text: "Love the influencer connections! 💜", author: "@foodie_spot"),
+        PortalVibeReview(text: "Our brand is thriving now! 🔥", author: "@boutique_life")
+    ]
+    
     @State private var localNavigationState = BizzNavigationState()
     
     var body: some View {
         NavigationStack {
             ZStack {
-                BizzPortalBackground()
-                BizzPortalContent(
-                    currentUser: userService.currentUser,
+                PortalBackground()
+                PortalReviewBubbles(activeReviews: activeReviews)
+                PortalMainContent(
+                    userService: userService,
                     userBusiness: userBusiness,
-                    searchText: $searchText,
                     navigateToSearch: $navigateToSearch,
-                    navigateToDashboard: $navigateToDashboard,
-                    isLoadingUser: userService.isLoading
+                    navigateToDashboard: $navigateToDashboard
                 )
             }
             .navigationBarHidden(true)
-            .navigationDestination(isPresented: $navigateToSearch) {
-                BizzSelectionView()
-                    .showBottomBar(false) // Hide bottom bar on business selection
-            }
-            .navigationDestination(isPresented: $navigateToDashboard) {
-                if let business = userBusiness {
-                    BusinessDashboardView(business: business)
-                }
-            }
             .onAppear {
                 loadUserBusiness()
+                startReviewAnimation()
+            }
+            .onDisappear {
+                reviewTimer?.invalidate()
             }
             .onChange(of: userService.currentUser) { oldValue, newValue in
                 loadUserBusiness()
             }
-            // Update navigation state when business is loaded
             .onChange(of: userBusiness) { oldValue, newValue in
-                // Only update if we have access to navigation state
                 updateNavigationState(with: newValue)
             }
         }
@@ -70,16 +74,41 @@ struct BizzPortalView: View {
             print("🏢 BizzPortal: Business loaded - \(business?.name ?? "nil")")
         }
     }
+    
+    private func startReviewAnimation() {
+        addRandomReview()
+        
+        reviewTimer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: true) { _ in
+            if activeReviews.count > 3 {
+                if let oldestReview = activeReviews.first {
+                    activeReviews.removeAll { $0.id == oldestReview.id }
+                }
+            }
+            addRandomReview()
+        }
+    }
+    
+    private func addRandomReview() {
+        let randomReview = sampleReviews.randomElement()!
+        let newReview = PortalVibeReview(
+            text: randomReview.text,
+            author: randomReview.author
+        )
+        
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+            activeReviews.append(newReview)
+        }
+    }
 }
 
-// MARK: - Bizz Portal Components
-struct BizzPortalBackground: View {
+// MARK: - Portal Background
+struct PortalBackground: View {
     var body: some View {
         LinearGradient(
             gradient: Gradient(colors: [
-                Color.purple.opacity(0.3),
-                Color.blue.opacity(0.4),
-                Color.teal.opacity(0.3)
+                Color.blue.opacity(0.05),
+                Color.purple.opacity(0.05),
+                Color.pink.opacity(0.03)
             ]),
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -88,475 +117,618 @@ struct BizzPortalBackground: View {
     }
 }
 
-struct BizzPortalContent: View {
-    let currentUser: FirebaseUser?
+// MARK: - Portal Review Bubbles Container
+struct PortalReviewBubbles: View {
+    let activeReviews: [PortalVibeReview]
+    
+    var body: some View {
+        // Confined area for bubbles - middle of screen
+        GeometryReader { geometry in
+            let bubbleZoneHeight: CGFloat = 200
+            let bubbleZoneY = geometry.size.height / 2 - bubbleZoneHeight / 2
+            
+            ZStack {
+                // Invisible container to define bubble area
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(height: bubbleZoneHeight)
+                    .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+                
+                ForEach(activeReviews) { review in
+                    FloatingPortalReviewBubble(
+                        review: review,
+                        containerWidth: geometry.size.width,
+                        bubbleZoneY: bubbleZoneY,
+                        bubbleZoneHeight: bubbleZoneHeight
+                    )
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Portal Main Content
+struct PortalMainContent: View {
+    @ObservedObject var userService: FirebaseUserService
     let userBusiness: FirebaseBusiness?
-    @Binding var searchText: String
     @Binding var navigateToSearch: Bool
     @Binding var navigateToDashboard: Bool
-    let isLoadingUser: Bool
     
     var body: some View {
-        ScrollView {
-            VStack(spacing: 40) {
-                BizzPortalHeader(currentUser: currentUser, isLoading: isLoadingUser)
-                BusinessExploreSection(searchText: $searchText)
-                BusinessActionSection(
-                    currentUser: currentUser,
-                    userBusiness: userBusiness,
-                    navigateToSearch: $navigateToSearch,
-                    navigateToDashboard: $navigateToDashboard
-                )
-                BusinessListSection()
-            }
-            .padding()
-        }
-    }
-}
-
-struct BizzPortalHeader: View {
-    let currentUser: FirebaseUser?
-    let isLoading: Bool
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "building.2.crop.circle.fill")
-                .font(.system(size: 80))
-                .foregroundColor(.white)
-                .shadow(radius: 10)
-            
-            VStack(spacing: 12) {
-                Text("Business Portal")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                
-                if isLoading {
-                    HStack {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .scaleEffect(0.8)
-                        Text("Setting up your account...")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.8))
-                    }
-                } else if let user = currentUser {
-                    VStack(spacing: 4) {
-                        Text("Welcome back, \(user.userName)! 👋")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                        
-                        Text("Member since \(user.formattedJoinDate)")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-                }
-            }
-        }
-        .padding(.top, 20)
-    }
-}
-
-struct BusinessExploreSection: View {
-    @Binding var searchText: String
-    @StateObject private var businessService = FirebaseBusinessService.shared
-    
-    var filteredBusinesses: [FirebaseBusiness] {
-        businessService.getFilteredBusinesses(searchText: searchText)
-    }
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            Text("Explore Businesses")
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(.white)
-            
-            // Search Bar
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.gray)
-                TextField("Search businesses...", text: $searchText)
-                    .foregroundColor(.black)
-                
-                if !searchText.isEmpty {
-                    Button(action: { searchText = "" }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.gray)
-                    }
-                }
-            }
-            .padding()
-            .background(Color.white)
-            .cornerRadius(15)
-            .shadow(radius: 5)
-            
-            // Search Results Preview
-            if !searchText.isEmpty {
-                VStack(spacing: 8) {
-                    HStack {
-                        Text("Found \(filteredBusinesses.count) businesses")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.8))
-                        Spacer()
-                    }
-                    
-                    if filteredBusinesses.isEmpty {
-                        Text("No businesses match your search")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.6))
-                            .padding()
-                    } else {
-                        ForEach(filteredBusinesses.prefix(3)) { business in
-                            SearchResultCard(business: business)
-                        }
-                        
-                        if filteredBusinesses.count > 3 {
-                            Text("+ \(filteredBusinesses.count - 3) more results")
-                                .font(.caption)
-                                .foregroundColor(.white.opacity(0.8))
-                        }
-                    }
-                }
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-    }
-}
-
-struct SearchResultCard: View {
-    let business: FirebaseBusiness
-    
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(business.name)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.black)
-                
-                Text(business.category)
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
+        VStack {
+            PortalHeader(userService: userService)
             
             Spacer()
             
-            VStack(alignment: .trailing, spacing: 4) {
-                HStack(spacing: 2) {
-                    Image(systemName: "star.fill")
-                        .foregroundColor(.yellow)
-                        .font(.caption2)
-                    Text(business.displayRating)
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-                
-                if !business.offer.isEmpty {
-                    Text("Has Offer")
-                        .font(.caption2)
-                        .foregroundColor(.green)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.green.opacity(0.1))
-                        .cornerRadius(4)
-                }
-            }
+            PortalActionSection(
+                userService: userService,
+                userBusiness: userBusiness,
+                navigateToSearch: $navigateToSearch,
+                navigateToDashboard: $navigateToDashboard
+            )
+            .padding(.horizontal, 20)
+            .padding(.bottom, 100)
         }
-        .padding()
-        .background(Color.white.opacity(0.9))
-        .cornerRadius(12)
     }
 }
 
-struct BusinessActionSection: View {
-    let currentUser: FirebaseUser?
+// MARK: - Portal Header
+struct PortalHeader: View {
+    @ObservedObject var userService: FirebaseUserService
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            VibeINLogo()
+            PortalTagline()
+            UserIndicator(userService: userService)
+        }
+        .padding(.top, 60)
+    }
+}
+
+// MARK: - VibeIN Logo
+struct VibeINLogo: View {
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [.purple.opacity(0.3), .pink.opacity(0.3)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 100, height: 100)
+                .blur(radius: 20)
+            
+            VStack(spacing: -5) {
+                Text("vibe")
+                    .font(.system(size: 36, weight: .bold, design: .rounded))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.purple, .pink],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                Text("IN")
+                    .font(.system(size: 36, weight: .black, design: .rounded))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.pink, .orange],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+            }
+        }
+    }
+}
+
+// MARK: - Portal Tagline
+struct PortalTagline: View {
+    var body: some View {
+        VStack(spacing: 8) {
+            Text("Where Businesses")
+                .font(.title2)
+                .fontWeight(.light)
+                .foregroundColor(.gray)
+            
+            Text("Meet Their Vibe")
+                .font(.title)
+                .fontWeight(.bold)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.purple, .pink, .orange],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+        }
+    }
+}
+
+// MARK: - User Indicator
+struct UserIndicator: View {
+    @ObservedObject var userService: FirebaseUserService
+    
+    var body: some View {
+        Group {
+            if userService.isLoading {
+                LoadingDots()
+            } else if let user = userService.currentUser {
+                UserBadge(userName: user.userName)
+            }
+        }
+    }
+}
+
+// MARK: - Loading Dots
+struct LoadingDots: View {
+    @State private var isAnimating = false
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<3) { index in
+                Circle()
+                    .fill(Color.purple.opacity(0.6))
+                    .frame(width: 8, height: 8)
+                    .scaleEffect(isAnimating ? 1.0 : 0.5)
+                    .animation(
+                        .easeInOut(duration: 0.6)
+                        .repeatForever()
+                        .delay(Double(index) * 0.2),
+                        value: isAnimating
+                    )
+            }
+        }
+        .onAppear { isAnimating = true }
+    }
+}
+
+// MARK: - User Badge
+struct UserBadge: View {
+    let userName: String
+    
+    var body: some View {
+        HStack {
+            Image(systemName: "person.crop.circle.fill")
+                .foregroundColor(.purple.opacity(0.6))
+            Text(userName)
+                .font(.subheadline)
+                .foregroundColor(.gray)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(
+            Capsule()
+                .fill(Color.white.opacity(0.8))
+                .overlay(
+                    Capsule()
+                        .stroke(Color.purple.opacity(0.2), lineWidth: 1)
+                )
+        )
+    }
+}
+
+// MARK: - Portal Action Section
+struct PortalActionSection: View {
+    @ObservedObject var userService: FirebaseUserService
     let userBusiness: FirebaseBusiness?
     @Binding var navigateToSearch: Bool
     @Binding var navigateToDashboard: Bool
     
     var body: some View {
         VStack(spacing: 16) {
-            if let user = currentUser {
+            if let user = userService.currentUser {
                 if user.canCreateBusiness {
-                    // User can create their first business
-                    CreateBusinessButton(navigateToSearch: $navigateToSearch)
+                    CreateBusinessSection(navigateToSearch: $navigateToSearch)
                 } else if let business = userBusiness {
-                    // User has a business - show dashboard button
-                    DashboardButton(
+                    BusinessDashboardSection(
                         business: business,
                         navigateToDashboard: $navigateToDashboard
                     )
                 } else {
-                    // User has created business but we're loading it
-                    LoadingBusinessCard()
+                    LoadingBusinessView()
                 }
-            } else {
-                // Loading user
-                LoadingUserCard()
             }
         }
     }
 }
 
-struct CreateBusinessButton: View {
+// MARK: - Create Business Section
+struct CreateBusinessSection: View {
     @Binding var navigateToSearch: Bool
     
     var body: some View {
-        VStack(spacing: 16) {
-            Text("Ready to grow your business?")
-                .font(.title3)
-                .fontWeight(.semibold)
-                .foregroundColor(.white)
-                .multilineTextAlignment(.center)
+        VStack(spacing: 20) {
+            WelcomeCard()
             
-            Button(action: {
-                navigateToSearch = true
-            }) {
-                HStack(spacing: 12) {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title2)
-                    Text("Join - Create Your Business")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                }
-                .foregroundColor(.white)
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [.green, .teal]),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                )
+            NavigationLink(destination: BizzSelectionView().showBottomBar(false)) {
+                CreateBusinessButton()
             }
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color.white.opacity(0.1))
-        )
     }
 }
 
-struct DashboardButton: View {
+// MARK: - Welcome Card
+struct WelcomeCard: View {
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 20)
+                .fill(
+                    LinearGradient(
+                        colors: [.purple.opacity(0.1), .pink.opacity(0.1)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(height: 140)
+            
+            HStack {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Ready to grow?")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.black)
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "person.2.fill")
+                                .font(.caption)
+                                .foregroundColor(.purple)
+                            Text("Connect to influencers")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        HStack(spacing: 4) {
+                            Image(systemName: "chart.bar.fill")
+                                .font(.caption)
+                                .foregroundColor(.pink)
+                            Text("Compare yourself")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        HStack(spacing: 4) {
+                            Image(systemName: "chart.line.uptrend.xyaxis")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                            Text("Get analytics & advertisements")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                    }
+                }
+                
+                Spacer()
+                
+                Image(systemName: "rocket.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.purple, .pink],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .rotationEffect(.degrees(-45))
+            }
+            .padding(.horizontal, 24)
+        }
+    }
+}
+
+// MARK: - Create Business Button
+struct CreateBusinessButton: View {
+    var body: some View {
+        HStack {
+            Text("Create Your Business")
+                .font(.headline)
+                .foregroundColor(.white)
+            
+            Image(systemName: "arrow.right")
+                .font(.headline)
+                .foregroundColor(.white)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(
+            LinearGradient(
+                colors: [.green, .teal],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .cornerRadius(16)
+        .shadow(color: Color.green.opacity(0.3), radius: 10, y: 5)
+    }
+}
+
+// MARK: - Business Dashboard Section
+struct BusinessDashboardSection: View {
     let business: FirebaseBusiness
     @Binding var navigateToDashboard: Bool
     
     var body: some View {
-        VStack(spacing: 16) {
-            VStack(spacing: 8) {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                        .font(.title2)
-                    Text("Business Active")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                    Spacer()
-                }
-                
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(business.name)
-                            .font(.title3)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                        
-                        Text(business.address)
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.8))
-                            .lineLimit(2)
-                    }
-                    Spacer()
-                }
-            }
+        VStack(spacing: 20) {
+            BusinessCard(business: business)
             
-            Button(action: {
-                navigateToDashboard = true
-            }) {
-                HStack(spacing: 12) {
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(.title2)
-                    Text("Dashboard")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                }
-                .foregroundColor(.white)
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [.blue, .purple]),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                )
+            NavigationLink(destination: BusinessDashboardView(business: business)) {
+                DashboardButton()
             }
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color.white.opacity(0.1))
-        )
     }
 }
 
-struct LoadingBusinessCard: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            HStack {
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                    .scaleEffect(0.8)
-                Text("Loading your business...")
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.8))
-                Spacer()
-            }
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color.white.opacity(0.1))
-        )
-    }
-}
-
-struct LoadingUserCard: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            HStack {
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                    .scaleEffect(0.8)
-                Text("Setting up your account...")
-                    .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.8))
-                Spacer()
-            }
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color.white.opacity(0.1))
-        )
-    }
-}
-
-struct BusinessListSection: View {
-    @StateObject private var businessService = FirebaseBusinessService.shared
+// MARK: - Business Card
+struct BusinessCard: View {
+    let business: FirebaseBusiness
     
     var body: some View {
         VStack(spacing: 16) {
-            HStack {
-                Text("All Businesses (\(businessService.businesses.count))")
-                    .font(.title3)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                Spacer()
-            }
-            
-            if businessService.businesses.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "building.2")
-                        .font(.system(size: 40))
-                        .foregroundColor(.white.opacity(0.6))
-                    
-                    Text("No businesses yet")
-                        .font(.headline)
-                        .foregroundColor(.white.opacity(0.8))
-                    
-                    Text("Be the first to create one!")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.6))
-                }
-                .padding()
-                .background(Color.white.opacity(0.1))
-                .cornerRadius(16)
-            } else {
-                LazyVStack(spacing: 12) {
-                    ForEach(businessService.businesses.prefix(5)) { business in
-                        BusinessDisplayCard(business: business)
-                    }
-                    
-                    if businessService.businesses.count > 5 {
-                        Text("+ \(businessService.businesses.count - 5) more businesses")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.7))
-                            .padding()
-                    }
-                }
-            }
+            BusinessCardHeader(business: business)
+            BusinessCardStats(business: business)
         }
+        .padding(24)
+        .background(Color.white)
+        .cornerRadius(20)
+        .shadow(color: Color.black.opacity(0.05), radius: 15, y: 5)
     }
 }
 
-struct BusinessDisplayCard: View {
+// MARK: - Business Card Header
+struct BusinessCardHeader: View {
     let business: FirebaseBusiness
     
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(business.name)
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.black)
-                    
-                    Spacer()
-                    
-                    HStack(spacing: 4) {
-                        Image(systemName: "star.fill")
-                            .foregroundColor(.yellow)
-                            .font(.caption)
-                        Text(business.displayRating)
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    }
-                }
+                Text("YOUR VIBE")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.purple.opacity(0.8))
+                    .tracking(1.5)
                 
-                Text(business.category)
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
+                Text(business.name)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.black)
                 
-                if !business.offer.isEmpty {
-                    Text(business.offer)
+                HStack(spacing: 4) {
+                    Image(systemName: "location.fill")
                         .font(.caption)
-                        .foregroundColor(.blue)
-                        .lineLimit(2)
+                        .foregroundColor(.gray)
+                    Text(business.address)
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                        .lineLimit(1)
                 }
             }
             
             Spacer()
             
-            VStack(spacing: 8) {
-                if business.hasMedia {
-                    Image(systemName: business.mediaType == "video" ? "video.fill" : "photo.fill")
-                        .foregroundColor(business.mediaType == "video" ? .purple : .blue)
-                        .font(.title2)
-                } else {
-                    Image(systemName: "map.fill")
-                        .foregroundColor(.green)
-                        .font(.title2)
+            VibeIndicator()
+        }
+    }
+}
+
+// MARK: - Vibe Indicator
+struct VibeIndicator: View {
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [.purple.opacity(0.2), .pink.opacity(0.2)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 60, height: 60)
+            
+            Image(systemName: "waveform")
+                .font(.title2)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.purple, .pink],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+        }
+    }
+}
+
+// MARK: - Business Card Stats
+struct BusinessCardStats: View {
+    let business: FirebaseBusiness
+    
+    var body: some View {
+        HStack(spacing: 0) {
+            MinimalStat(
+                value: String(format: "%.1f", business.rating ?? 0.0),
+                icon: "star.fill",
+                color: .orange
+            )
+            
+            Divider()
+                .frame(height: 30)
+                .padding(.horizontal, 20)
+            
+            MinimalStat(
+                value: "\(business.reviewCount ?? 0)",
+                icon: "bubble.left.fill",
+                color: .purple
+            )
+            
+            Divider()
+                .frame(height: 30)
+                .padding(.horizontal, 20)
+            
+            MinimalStat(
+                value: business.category,
+                icon: "tag.fill",
+                color: .pink
+            )
+        }
+    }
+}
+
+// MARK: - Dashboard Button
+struct DashboardButton: View {
+    var body: some View {
+        HStack {
+            Text("Enter Dashboard")
+                .font(.headline)
+                .foregroundColor(.white)
+            
+            Image(systemName: "arrow.right")
+                .font(.headline)
+                .foregroundColor(.white)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(
+            LinearGradient(
+                colors: [.purple, .pink],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .cornerRadius(16)
+        .shadow(color: Color.purple.opacity(0.3), radius: 10, y: 5)
+    }
+}
+
+// MARK: - Loading Business View
+struct LoadingBusinessView: View {
+    @State private var isAnimating = false
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 12) {
+                ForEach(0..<3) { index in
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: 60, height: 8)
+                        .scaleEffect(x: isAnimating ? 1.0 : 0.5)
+                        .animation(
+                            .easeInOut(duration: 0.8)
+                            .repeatForever()
+                            .delay(Double(index) * 0.2),
+                            value: isAnimating
+                        )
                 }
-                
-                Text("\(business.reviewCount ?? 0) reviews")
-                    .font(.caption2)
-                    .foregroundColor(.gray)
+            }
+            
+            Text("Setting up your vibe...")
+                .font(.subheadline)
+                .foregroundColor(.gray)
+        }
+        .onAppear { isAnimating = true }
+    }
+}
+
+// MARK: - Portal Vibe Review Model
+struct PortalVibeReview: Identifiable {
+    let id = UUID()
+    let text: String
+    let author: String
+}
+
+// MARK: - Floating Portal Review Bubble
+struct FloatingPortalReviewBubble: View {
+    let review: PortalVibeReview
+    let containerWidth: CGFloat
+    let bubbleZoneY: CGFloat
+    let bubbleZoneHeight: CGFloat
+    
+    @State private var position: CGPoint = .zero
+    @State private var opacity: Double = 0
+    @State private var scale: Double = 0.8
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(review.text)
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundColor(.white)
+                .multilineTextAlignment(.leading)
+            
+            Text(review.author)
+                .font(.system(size: 12, design: .rounded))
+                .foregroundColor(.white.opacity(0.8))
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.blue.opacity(0.8),
+                            Color.purple.opacity(0.8)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+        )
+        .shadow(color: Color.purple.opacity(0.3), radius: 10, y: 5)
+        .scaleEffect(scale)
+        .opacity(opacity)
+        .position(position)
+        .onAppear {
+            // Position within the defined bubble zone
+            position = CGPoint(
+                x: CGFloat.random(in: 60...(containerWidth - 60)),
+                y: bubbleZoneY + CGFloat.random(in: 20...(bubbleZoneHeight - 20))
+            )
+            
+            withAnimation(.easeOut(duration: 0.5)) {
+                opacity = 1.0
+                scale = 1.0
+            }
+            
+            // Gentle horizontal floating only
+            withAnimation(
+                .easeInOut(duration: Double.random(in: 4...6))
+                .repeatForever(autoreverses: true)
+            ) {
+                position.x += CGFloat.random(in: -20...20)
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+                withAnimation(.easeOut(duration: 1.0)) {
+                    opacity = 0
+                    scale = 0.8
+                }
             }
         }
-        .padding()
-        .background(Color.white)
-        .cornerRadius(16)
-        .shadow(radius: 3)
+    }
+}
+
+// MARK: - Minimal Stat
+struct MinimalStat: View {
+    let value: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundColor(color)
+            
+            Text(value)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.black)
+        }
+        .frame(maxWidth: .infinity)
     }
 }

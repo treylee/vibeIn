@@ -8,6 +8,7 @@ struct InfluencerRestaurantDetailView: View {
     @State private var business: FirebaseBusiness?
     @State private var isLoadingBusiness = true
     @State private var navigateToOffer = false
+    @State private var hasJoinedOffer = false
     @State private var mapRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
         span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
@@ -15,6 +16,8 @@ struct InfluencerRestaurantDetailView: View {
     @State private var selectedTab = 0
     @State private var googleReviews: [GPlaceDetails.Review] = []
     @State private var loadingReviews = false
+    @StateObject private var offerService = FirebaseOfferService.shared
+    @StateObject private var influencerService = FirebaseInfluencerService.shared
     
     var body: some View {
         ScrollView {
@@ -55,7 +58,7 @@ struct InfluencerRestaurantDetailView: View {
                     )
                     
                     // Join Now Button
-                    JoinNowButton(navigateToOffer: $navigateToOffer)
+                    JoinNowButton(navigateToOffer: $navigateToOffer, hasJoined: hasJoinedOffer)
                 }
             }
             .padding(.bottom, 30)
@@ -66,6 +69,7 @@ struct InfluencerRestaurantDetailView: View {
         }
         .onAppear {
             loadBusinessDetails()
+            checkIfAlreadyJoined()
         }
     }
     
@@ -96,6 +100,20 @@ struct InfluencerRestaurantDetailView: View {
         GooglePlacesService.shared.fetchPlaceDetails(for: placeID) { reviews, _, _, _ in
             self.googleReviews = reviews
             self.loadingReviews = false
+        }
+    }
+    
+    private func checkIfAlreadyJoined() {
+        guard let influencer = influencerService.currentInfluencer,
+              let offerId = offer.id else { return }
+        
+        offerService.hasInfluencerJoinedOffer(
+            influencerId: influencer.influencerId,
+            offerId: offerId
+        ) { hasJoined in
+            DispatchQueue.main.async {
+                self.hasJoinedOffer = hasJoined
+            }
         }
     }
 }
@@ -588,12 +606,13 @@ struct MenuTab: View {
 // MARK: - Join Now Button
 struct JoinNowButton: View {
     @Binding var navigateToOffer: Bool
+    let hasJoined: Bool
     
     var body: some View {
         Button(action: { navigateToOffer = true }) {
             HStack {
-                Image(systemName: "arrow.right.circle.fill")
-                Text("Join This Offer")
+                Image(systemName: hasJoined ? "checkmark.circle.fill" : "arrow.right.circle.fill")
+                Text(hasJoined ? "View Offer Details" : "Join This Offer")
                     .fontWeight(.semibold)
             }
             .foregroundColor(.white)
@@ -601,13 +620,13 @@ struct JoinNowButton: View {
             .frame(maxWidth: .infinity)
             .background(
                 LinearGradient(
-                    colors: [.purple, .pink],
+                    colors: hasJoined ? [.green, .mint] : [.purple, .pink],
                     startPoint: .leading,
                     endPoint: .trailing
                 )
             )
             .cornerRadius(12)
-            .shadow(color: .purple.opacity(0.3), radius: 8, y: 4)
+            .shadow(color: hasJoined ? .green.opacity(0.3) : .purple.opacity(0.3), radius: 8, y: 4)
         }
         .padding(.horizontal)
     }

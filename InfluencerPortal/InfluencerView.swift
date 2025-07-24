@@ -3,7 +3,12 @@
 import SwiftUI
 
 struct InfluencerView: View {
-    @State private var selectedTab = 0
+    @State private var selectedTab: Int
+    
+    // Add initializer to set starting tab
+    init(startingTab: Int = 0) {
+        _selectedTab = State(initialValue: startingTab)
+    }
     
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -14,7 +19,7 @@ struct InfluencerView: View {
                 }
                 .tag(0)
             
-            // Portal Tab
+            // Portal Tab (Dashboard)
             InfluencerPortalView()
                 .tabItem {
                     Label("Dashboard", systemImage: "house.fill")

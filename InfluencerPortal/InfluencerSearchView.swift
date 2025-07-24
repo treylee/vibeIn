@@ -3,6 +3,7 @@
 import SwiftUI
 import MapKit
 
+// MARK: - Small vibeIN Logo
 struct InfluencerSearchView: View {
     @State private var searchText = ""
     @State private var selectedCategory = "All"
@@ -62,7 +63,7 @@ struct InfluencerSearchView: View {
                         ScrollView {
                             LazyVStack(spacing: 16) {
                                 ForEach(filteredOffers) { offer in
-                                    NavigationLink(destination: InfluencerRestaurantDetailView(offer: offer)) {
+                                    NavigationLink(destination: OfferDetailView(offer: offer)) {
                                         InfluencerOfferCard(offer: offer)
                                     }
                                 }
@@ -81,6 +82,10 @@ struct InfluencerSearchView: View {
 struct InfluencerSearchHeader: View {
     var body: some View {
         VStack(spacing: 8) {
+            // Add vibeIN logo here
+            SmallVibeINLogo()
+                .padding(.bottom, 8)
+            
             Text("Discover Offers")
                 .font(.largeTitle)
                 .fontWeight(.bold)

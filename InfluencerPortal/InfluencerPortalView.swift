@@ -35,7 +35,7 @@ struct InfluencerPortalView: View {
                         // Content
                         TabView(selection: $selectedTab) {
                             // Active Offers Tab
-                            ActiveOffersView()
+                            InfluencerActiveOffersView()
                                 .tag(0)
                             
                             // Past Reviews Tab
@@ -278,33 +278,16 @@ struct TabBarButton: View {
     }
 }
 
-// MARK: - Active Offers View
-struct ActiveOffersView: View {
-    @StateObject private var offerService = FirebaseOfferService.shared
-    
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                ForEach(offerService.offers) { offer in
-                    ActiveOfferCard(offer: offer)
-                }
-                
-                if offerService.offers.isEmpty {
-                    EmptyOffersState()
-                        .padding(.top, 60)
-                }
-            }
-            .padding()
-        }
-    }
-}
+// Keep the existing ActiveOfferCard implementation since it's still referenced
+// The new implementation is in InfluencerActiveOffersView.swift
 
 struct ActiveOfferCard: View {
     let offer: FirebaseOffer
     @State private var navigateToDetail = false
     
     var body: some View {
-        NavigationLink(destination: OfferDetailView(offer: offer)) {
+        // CHANGED: Navigate to InfluencerRestaurantDetailView instead of OfferDetailView
+        NavigationLink(destination: InfluencerRestaurantDetailView(offer: offer)) {
             VStack(alignment: .leading, spacing: 12) {
                 // Business Info
                 HStack {
