@@ -20,6 +20,7 @@ struct InfluencerSearchView: View {
     @State private var selectedOffer: FirebaseOffer?
     @StateObject private var offerService = FirebaseOfferService.shared
     @StateObject private var influencerService = FirebaseInfluencerService.shared
+    @EnvironmentObject var navigationState: InfluencerNavigationState
     
     var filteredOffers: [FirebaseOffer] {
         if searchText.isEmpty {
@@ -144,7 +145,9 @@ struct InfluencerSearchView: View {
                                     )
                                 } else {
                                     ForEach(filteredOffers) { offer in
-                                        NavigationLink(destination: InfluencerRestaurantDetailView(offer: offer)) {
+                                        NavigationLink(destination: InfluencerRestaurantDetailView(offer: offer)
+                                            .environmentObject(navigationState)
+                                        ) {
                                             InfluencerOfferCardView(offer: offer)
                                         }
                                     }

@@ -18,6 +18,7 @@ struct InfluencerRestaurantDetailView: View {
     @State private var loadingReviews = false
     @StateObject private var offerService = FirebaseOfferService.shared
     @StateObject private var influencerService = FirebaseInfluencerService.shared
+    @EnvironmentObject var navigationState: InfluencerNavigationState
     
     var body: some View {
         ScrollView {
@@ -91,6 +92,7 @@ struct InfluencerRestaurantDetailView: View {
         }
         .navigationDestination(isPresented: $navigateToOffer) {
             OfferDetailView(offer: offer)
+                .environmentObject(navigationState)
         }
         .onAppear {
             loadBusinessDetails()
