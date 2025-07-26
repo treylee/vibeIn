@@ -5,65 +5,48 @@ import MapKit
 
 // MARK: - Navigation Container View
 struct BizzNavigationContainer: View {
-    @State private var selectedTab: BizzTab = .home
     @StateObject private var navigationState = BizzNavigationState()
     @StateObject private var userService = FirebaseUserService.shared
     @StateObject private var businessService = FirebaseBusinessService.shared
-    @State private var showBottomBar = true
     
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .bottom) {
-                // Main Content
-                ZStack {
-                    // Search View
+        ZStack(alignment: .bottom) {
+            // Tab Views
+            TabView(selection: $navigationState.selectedTab) {
+                // Search Tab
+                NavigationStack {
                     BizzSearchView()
-                        .opacity(selectedTab == .search ? 1 : 0)
-                        .animation(.easeInOut(duration: 0.2), value: selectedTab)
-                    
-                    // Home View
-                    BizzPortalView()
-                        .navigationBarHidden(true)
-                        .opacity(selectedTab == .home ? 1 : 0)
-                        .animation(.easeInOut(duration: 0.2), value: selectedTab)
-                    
-                    // Dashboard View
-                    if selectedTab == .dashboard {
-                        if let business = navigationState.userBusiness {
-                            BusinessDashboardView(business: business)
-                                .transition(.opacity)
-                                .onAppear {
-                                    print("📊 Dashboard Tab: Showing BusinessDashboardView for \(business.name)")
-                                }
-                        } else {
-                            BizzDashboardPlaceholder()
-                                .transition(.opacity)
-                                .onAppear {
-                                    print("📊 Dashboard Tab: Showing placeholder (no business)")
-                                }
-                        }
+                }
+                .tag(BizzTab.search)
+                
+                // Home Tab
+                NavigationStack {
+                    BizzPortalViewRegistered()
+                }
+                .tag(BizzTab.home)
+                
+                // Dashboard Tab
+                NavigationStack {
+                    if let business = navigationState.userBusiness {
+                        BusinessDashboardView(business: business)
+                    } else {
+                        BizzDashboardPlaceholder()
                     }
                 }
+                .tag(BizzTab.dashboard)
+            }
+            .environmentObject(navigationState)
+            
+            // Custom Bottom Navigation Bar (always visible)
+            VibeBottomNavigationBar(selectedTab: $navigationState.selectedTab)
                 .environmentObject(navigationState)
-                
-                // Bottom Navigation Bar - Conditional display
-                if showBottomBar {
-                    VibeBottomNavigationBar(selectedTab: $selectedTab)
-                        .environmentObject(navigationState)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-            }
-            .navigationBarHidden(true)
-            .onPreferenceChange(ShowBottomBarPreferenceKey.self) { value in
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    showBottomBar = value
-                }
-            }
         }
+        .ignoresSafeArea(.keyboard) // Ensure bottom bar stays visible even with keyboard
         .onAppear {
             loadUserBusiness()
+            setupTabBarAppearance()
         }
-        .onChange(of: selectedTab) { oldValue, newValue in
+        .onChange(of: navigationState.selectedTab) { oldValue, newValue in
             print("📱 Tab changed from \(oldValue.rawValue) to \(newValue.rawValue)")
             if newValue == .dashboard {
                 print("📊 Dashboard selected - Business: \(navigationState.userBusiness?.name ?? "nil")")
@@ -73,6 +56,11 @@ struct BizzNavigationContainer: View {
                 impactFeedback.impactOccurred()
             }
         }
+    }
+    
+    private func setupTabBarAppearance() {
+        // Hide the default tab bar
+        UITabBar.appearance().isHidden = true
     }
     
     private func loadUserBusiness() {
@@ -93,7 +81,7 @@ struct BizzNavigationContainer: View {
 // MARK: - Navigation State
 class BizzNavigationState: ObservableObject {
     @Published var userBusiness: FirebaseBusiness?
-    @Published var showBottomBar = true
+    @Published var selectedTab: BizzTab = .home
 }
 
 // MARK: - Tab Enum
@@ -119,7 +107,7 @@ enum BizzTab: String, CaseIterable {
     }
 }
 
-// MARK: - Vibe Bottom Navigation Bar
+// MARK: - Vibe Bottom Navigation Bar (TikTok/Instagram Style)
 struct VibeBottomNavigationBar: View {
     @Binding var selectedTab: BizzTab
     @EnvironmentObject var navigationState: BizzNavigationState
@@ -127,52 +115,6 @@ struct VibeBottomNavigationBar: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Show business name when on dashboard
-            if selectedTab == .dashboard, let business = navigationState.userBusiness {
-                HStack {
-                    Image(systemName: "storefront")
-                        .font(.system(size: 14))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.teal, .blue],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                    
-                    Text(business.name)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.teal, .blue],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .lineLimit(1)
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 8)
-                .background(
-                    Capsule()
-                        .fill(Color.white.opacity(0.9))
-                        .overlay(
-                            Capsule()
-                                .stroke(
-                                    LinearGradient(
-                                        colors: [.teal.opacity(0.3), .blue.opacity(0.3)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    ),
-                                    lineWidth: 1
-                                )
-                        )
-                )
-                .shadow(color: Color.black.opacity(0.05), radius: 5, y: 2)
-                .padding(.bottom, 8)
-                .transition(.move(edge: .top).combined(with: .opacity))
-            }
-            
             // Thin colorful top line
             LinearGradient(
                 gradient: Gradient(colors: [
@@ -299,25 +241,6 @@ struct VibeTabButton: View {
         }, perform: {})
     }
 }
-
-// MARK: - Preference Key for Bottom Bar Visibility
-struct ShowBottomBarPreferenceKey: PreferenceKey {
-    static var defaultValue: Bool = true
-    
-    static func reduce(value: inout Bool, nextValue: () -> Bool) {
-        value = nextValue()
-    }
-}
-
-// MARK: - View Extension for Bottom Bar Control
-extension View {
-    func showBottomBar(_ show: Bool) -> some View {
-        preference(key: ShowBottomBarPreferenceKey.self, value: show)
-    }
-}
-
-// MARK: - Search View
-// BizzSearchView is defined in BizzSearchView.swift
 
 // MARK: - Dashboard Placeholder
 struct BizzDashboardPlaceholder: View {

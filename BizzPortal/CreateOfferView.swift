@@ -38,7 +38,6 @@ struct CreateOfferView: View {
             }
             .navigationDestination(isPresented: $navigateToPreview) {
                 OfferPreviewView(business: business, offerData: offerData)
-                    .showBottomBar(false)
             }
         }
     }

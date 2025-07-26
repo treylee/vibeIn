@@ -12,6 +12,7 @@ struct OfferPreviewView: View {
     @State private var showErrorAlert = false
     @State private var alertMessage = ""
     @State private var navigateToPortal = false
+    @State private var createdBusiness: FirebaseBusiness?
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -35,8 +36,8 @@ struct OfferPreviewView: View {
             }
         }
         .navigationDestination(isPresented: $navigateToPortal) {
-            // Navigate to the container with dashboard tab and the business
-            BizzNavigationContainerWithDashboard(initialBusiness: business)
+            // Navigate to the main app with bottom navigation
+            BizzNavigationContainer()
                 .navigationBarBackButtonHidden(true)
         }
         .alert("Offer Created! 🎉", isPresented: $showSuccessAlert) {

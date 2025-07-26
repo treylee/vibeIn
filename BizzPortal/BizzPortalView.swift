@@ -4,10 +4,6 @@ import SwiftUI
 
 struct BizzPortalView: View {
     @StateObject private var userService = FirebaseUserService.shared
-    @StateObject private var businessService = FirebaseBusinessService.shared
-    @State private var navigateToSearch = false
-    @State private var navigateToDashboard = false
-    @State private var userBusiness: FirebaseBusiness?
     @State private var activeReviews: [PortalVibeReview] = []
     @State private var reviewTimer: Timer?
     
@@ -23,55 +19,28 @@ struct BizzPortalView: View {
         PortalVibeReview(text: "Our brand is thriving now! 🔥", author: "@boutique_life")
     ]
     
-    @State private var localNavigationState = BizzNavigationState()
-    
     var body: some View {
-        NavigationStack {
-            ZStack {
-                PortalBackground()
-                PortalReviewBubbles(activeReviews: activeReviews)
-                PortalMainContent(
-                    userService: userService,
-                    userBusiness: userBusiness,
-                    navigateToSearch: $navigateToSearch,
-                    navigateToDashboard: $navigateToDashboard
-                )
-            }
-            .navigationBarHidden(true)
-            .onAppear {
-                loadUserBusiness()
-                startReviewAnimation()
-            }
-            .onDisappear {
-                reviewTimer?.invalidate()
-            }
-            .onChange(of: userService.currentUser) { oldValue, newValue in
-                loadUserBusiness()
-            }
-            .onChange(of: userBusiness) { oldValue, newValue in
-                updateNavigationState(with: newValue)
+        ZStack {
+            PortalBackground()
+            PortalReviewBubbles(activeReviews: activeReviews)
+            
+            VStack {
+                PortalHeader(userService: userService)
+                
+                Spacer()
+                
+                // Always show create business section in signup flow
+                CreateBusinessSection(navigateToSearch: .constant(false))
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 50) // Less padding since no bottom nav
             }
         }
-        .environmentObject(localNavigationState)
-    }
-    
-    private func updateNavigationState(with business: FirebaseBusiness?) {
-        localNavigationState.userBusiness = business
-        print("🏢 BizzPortal: Business updated in navigation state - \(business?.name ?? "nil")")
-    }
-    
-    private func loadUserBusiness() {
-        guard let currentUser = userService.currentUser,
-              currentUser.hasCreatedBusiness else {
-            userBusiness = nil
-            updateNavigationState(with: nil)
-            return
+        .navigationBarHidden(true)
+        .onAppear {
+            startReviewAnimation()
         }
-        
-        userService.getUserBusiness { business in
-            self.userBusiness = business
-            self.updateNavigationState(with: business)
-            print("🏢 BizzPortal: Business loaded - \(business?.name ?? "nil")")
+        .onDisappear {
+            reviewTimer?.invalidate()
         }
     }
     
@@ -128,12 +97,6 @@ struct PortalReviewBubbles: View {
             let bubbleZoneY = geometry.size.height / 2 - bubbleZoneHeight / 2
             
             ZStack {
-                // Debug: Uncomment to see bubble zone
-                // Rectangle()
-                //     .fill(Color.red.opacity(0.1))
-                //     .frame(width: geometry.size.width - 100, height: bubbleZoneHeight)
-                //     .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
-                
                 ForEach(activeReviews) { review in
                     FloatingPortalReviewBubble(
                         review: review,
@@ -143,31 +106,6 @@ struct PortalReviewBubbles: View {
                     )
                 }
             }
-        }
-    }
-}
-
-// MARK: - Portal Main Content
-struct PortalMainContent: View {
-    @ObservedObject var userService: FirebaseUserService
-    let userBusiness: FirebaseBusiness?
-    @Binding var navigateToSearch: Bool
-    @Binding var navigateToDashboard: Bool
-    
-    var body: some View {
-        VStack {
-            PortalHeader(userService: userService)
-            
-            Spacer()
-            
-            PortalActionSection(
-                userService: userService,
-                userBusiness: userBusiness,
-                navigateToSearch: $navigateToSearch,
-                navigateToDashboard: $navigateToDashboard
-            )
-            .padding(.horizontal, 20)
-            .padding(.bottom, 100)
         }
     }
 }
@@ -311,31 +249,6 @@ struct UserBadge: View {
     }
 }
 
-// MARK: - Portal Action Section
-struct PortalActionSection: View {
-    @ObservedObject var userService: FirebaseUserService
-    let userBusiness: FirebaseBusiness?
-    @Binding var navigateToSearch: Bool
-    @Binding var navigateToDashboard: Bool
-    
-    var body: some View {
-        VStack(spacing: 16) {
-            if let user = userService.currentUser {
-                if user.canCreateBusiness {
-                    CreateBusinessSection(navigateToSearch: $navigateToSearch)
-                } else if let business = userBusiness {
-                    BusinessDashboardSection(
-                        business: business,
-                        navigateToDashboard: $navigateToDashboard
-                    )
-                } else {
-                    LoadingBusinessView()
-                }
-            }
-        }
-    }
-}
-
 // MARK: - Create Business Section
 struct CreateBusinessSection: View {
     @Binding var navigateToSearch: Bool
@@ -344,7 +257,7 @@ struct CreateBusinessSection: View {
         VStack(spacing: 20) {
             WelcomeCard()
             
-            NavigationLink(destination: BizzSelectionView().showBottomBar(true)) {
+            NavigationLink(destination: BizzSelectionView()) {
                 CreateBusinessButton()
             }
         }

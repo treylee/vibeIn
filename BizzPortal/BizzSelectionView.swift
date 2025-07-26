@@ -68,8 +68,15 @@ struct BizzSelectionView: View {
                 .padding(.horizontal)
             }
         }
-        .navigationBarHidden(true)
-        .showBottomBar(true) // Show the bottom navigation bar
+        .navigationBarHidden(false)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(false)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("Find Your Business")
+                    .font(.headline)
+            }
+        }
         .navigationDestination(isPresented: $navigateToPreview) {
             if let place = selectedPlace {
                 BizzPreviewView(

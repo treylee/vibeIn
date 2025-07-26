@@ -10,6 +10,7 @@ struct LoginView: View {
     @State private var selectedUserType: UserType = .influencer
     @State private var navigateInfluencer = false
     @State private var navigateBizz = false
+    @StateObject private var userService = FirebaseUserService.shared
     @Namespace var animation
 
     var body: some View {
@@ -40,6 +41,20 @@ struct LoginView: View {
                     navigateBizz: $navigateBizz,
                     animation: animation
                 )
+            }
+            .navigationDestination(isPresented: $navigateInfluencer) {
+                InfluencerView()
+            }
+            .navigationDestination(isPresented: $navigateBizz) {
+                // Check if user has created business
+                if let user = userService.currentUser, user.hasCreatedBusiness {
+                    // Go directly to registered view with bottom navigation
+                    BizzNavigationContainer()
+                } else {
+                    // Go to signup flow (BizzPortalView without bottom nav)
+                    BizzPortalView()
+                        .navigationBarHidden(true)
+                }
             }
         }
     }
@@ -94,19 +109,13 @@ struct LoginContent: View {
                 navigateBizz: $navigateBizz
             )
             
-            // Navigation Links
-            NavigationLinks(
-                navigateInfluencer: $navigateInfluencer,
-                navigateBizz: $navigateBizz
-            )
-            
             Spacer()
         }
         .padding(.horizontal, 30)
     }
 }
 
-// MARK: - Dynamic vibeIN Logo (replaces ModernVibeINLogo)
+// MARK: - Dynamic vibeIN Logo
 struct DynamicVibeINLogo: View {
     let selectedUserType: LoginView.UserType
     @State private var isAnimating = false
@@ -362,22 +371,4 @@ struct ModernJoinButton: View {
             }
         }, perform: {})
     }
-}
-
-// MARK: - Navigation Links (unchanged)
-struct NavigationLinks: View {
-    @Binding var navigateInfluencer: Bool
-    @Binding var navigateBizz: Bool
-    
-    var body: some View {
-        Group {
-            NavigationLink(destination: InfluencerView(), isActive: $navigateInfluencer) {
-                EmptyView()
-            }
-            
-            NavigationLink(destination: BizzNavigationContainer(), isActive: $navigateBizz) {
-                EmptyView()
-            }
-        }
-    }
-}
+}   

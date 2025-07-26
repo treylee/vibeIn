@@ -212,8 +212,8 @@ struct OfferDetailView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(isPresented: $navigateToDashboard) {
-            // Navigate to the influencer view with dashboard tab selected (tab index 1)
-            InfluencerView(startingTab: 1)
+            // Navigate to the main influencer view with dashboard selected
+            InfluencerView()
                 .navigationBarBackButtonHidden(true)
         }
         .onAppear {

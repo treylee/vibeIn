@@ -23,8 +23,15 @@ struct InfluencerRestaurantDetailView: View {
         ScrollView {
             VStack(spacing: 24) {
                 if isLoadingBusiness {
-                    ProgressView("Loading restaurant details...")
-                        .padding(.top, 100)
+                    VStack(spacing: 20) {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .purple))
+                            .scaleEffect(1.5)
+                        Text("Loading vibe details...")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.top, 100)
                 } else if let business = business {
                     // Restaurant Header
                     RestaurantHeaderSection(
@@ -64,6 +71,24 @@ struct InfluencerRestaurantDetailView: View {
             .padding(.bottom, 30)
         }
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                VStack(spacing: 0) {
+                    Text("Discover")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text("Your Vibe")
+                        .font(.headline)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.purple, .pink],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                }
+            }
+        }
         .navigationDestination(isPresented: $navigateToOffer) {
             OfferDetailView(offer: offer)
         }
@@ -125,6 +150,60 @@ struct RestaurantHeaderSection: View {
     
     var body: some View {
         VStack(spacing: 16) {
+            // Vibe Badge
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 14))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.purple, .pink],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                Text("Featured Vibe")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.purple, .pink],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                Image(systemName: "sparkles")
+                    .font(.system(size: 14))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.pink, .purple],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.purple.opacity(0.1), Color.pink.opacity(0.1)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color.purple.opacity(0.3), Color.pink.opacity(0.3)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+            )
+            
             // Business Name
             Text(business.name)
                 .font(.largeTitle)
@@ -305,7 +384,13 @@ struct RestaurantOfferPreviewCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Label("Special Offer", systemImage: "gift.fill")
                         .font(.headline)
-                        .foregroundColor(.purple)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.purple, .pink],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                     
                     Text(offer.description)
                         .font(.subheadline)
@@ -319,7 +404,13 @@ struct RestaurantOfferPreviewCard: View {
                     Text("\(offer.availableSpots)")
                         .font(.title2)
                         .fontWeight(.bold)
-                        .foregroundColor(.purple)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.orange, .pink],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                     Text("spots left")
                         .font(.caption2)
                         .foregroundColor(.gray)
@@ -348,7 +439,13 @@ struct RestaurantOfferPreviewCard: View {
                     Text("View Details")
                         .font(.caption)
                         .fontWeight(.semibold)
-                        .foregroundColor(.purple)
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.purple, .pink],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                 }
             }
             
@@ -363,7 +460,7 @@ struct RestaurantOfferPreviewCard: View {
                     Rectangle()
                         .fill(
                             LinearGradient(
-                                colors: [.purple, .pink],
+                                colors: [.orange, .pink],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
@@ -388,7 +485,14 @@ struct RestaurantOfferPreviewCard: View {
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.purple.opacity(0.2), lineWidth: 1)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.purple.opacity(0.2), Color.pink.opacity(0.2)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    lineWidth: 1
+                )
         )
         .padding(.horizontal)
     }
@@ -603,31 +707,41 @@ struct MenuTab: View {
     }
 }
 
-// MARK: - Join Now Button
+// MARK: - Join Now Button (Updated with matching aesthetic)
 struct JoinNowButton: View {
     @Binding var navigateToOffer: Bool
     let hasJoined: Bool
     
     var body: some View {
         Button(action: { navigateToOffer = true }) {
-            HStack {
+            HStack(spacing: 12) {
                 Image(systemName: hasJoined ? "checkmark.circle.fill" : "arrow.right.circle.fill")
+                    .font(.system(size: 20))
                 Text(hasJoined ? "View Offer Details" : "Join This Offer")
-                    .fontWeight(.semibold)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
             }
             .foregroundColor(.white)
             .padding()
             .frame(maxWidth: .infinity)
             .background(
                 LinearGradient(
-                    colors: hasJoined ? [.green, .mint] : [.purple, .pink],
+                    gradient: Gradient(colors: hasJoined ?
+                        [Color.pink.opacity(0.8), Color.orange.opacity(0.8)] :
+                        [Color.orange, Color.pink]
+                    ),
                     startPoint: .leading,
                     endPoint: .trailing
                 )
             )
-            .cornerRadius(12)
-            .shadow(color: hasJoined ? .green.opacity(0.3) : .purple.opacity(0.3), radius: 8, y: 4)
+            .cornerRadius(20)
+            .shadow(color: hasJoined ? Color.pink.opacity(0.3) : Color.orange.opacity(0.3), radius: 10, y: 5)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+            )
         }
         .padding(.horizontal)
+        .scaleEffect(1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: hasJoined)
     }
 }

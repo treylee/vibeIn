@@ -81,7 +81,6 @@ struct BusinessDashboardView: View {
         .navigationBarHidden(true)
         .navigationDestination(isPresented: $navigateToCreateOffer) {
             CreateOfferView(business: business)
-                .showBottomBar(false)
         }
         .onAppear {
             loadBusinessOffers()
@@ -93,7 +92,6 @@ struct BusinessDashboardView: View {
             print("🔄 Reloading offers after creation")
             loadBusinessOffers()
         }
-        .showBottomBar(true) // Explicitly show bottom bar on dashboard
     }
     
     private func loadBusinessOffers() {
