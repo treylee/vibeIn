@@ -49,7 +49,7 @@ struct InfluencerNavigationContainer: View {
             loadInfluencerProfile()
             setupTabBarAppearance()
         }
-                        .onChange(of: navigationState.selectedTab) { oldValue, newValue in
+        .onChange(of: navigationState.selectedTab) { oldValue, newValue in
             print("📱 Tab changed from \(oldValue.rawValue) to \(newValue.rawValue)")
             if newValue == .profile {
                 print("👤 Profile selected - Influencer: \(navigationState.currentInfluencer?.userName ?? "nil")")
@@ -82,6 +82,11 @@ class InfluencerNavigationState: ObservableObject {
     
     func navigateToPortal() {
         selectedTab = .portal
+        shouldPopToRoot = true
+    }
+    
+    func navigateToDashboard() {
+        selectedTab = .discover
         shouldPopToRoot = true
     }
 }

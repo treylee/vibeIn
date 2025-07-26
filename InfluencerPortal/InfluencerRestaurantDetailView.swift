@@ -9,6 +9,7 @@ struct InfluencerRestaurantDetailView: View {
     @State private var isLoadingBusiness = true
     @State private var navigateToOffer = false
     @State private var hasJoinedOffer = false
+    @State private var shouldNavigateToPortal = false
     @State private var mapRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
         span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
@@ -19,6 +20,7 @@ struct InfluencerRestaurantDetailView: View {
     @StateObject private var offerService = FirebaseOfferService.shared
     @StateObject private var influencerService = FirebaseInfluencerService.shared
     @EnvironmentObject var navigationState: InfluencerNavigationState
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         ScrollView {
@@ -91,12 +93,20 @@ struct InfluencerRestaurantDetailView: View {
             }
         }
         .navigationDestination(isPresented: $navigateToOffer) {
-            OfferDetailView(offer: offer)
+            OfferDetailView(offer: offer, shouldNavigateToPortal: $shouldNavigateToPortal)
                 .environmentObject(navigationState)
         }
         .onAppear {
             loadBusinessDetails()
             checkIfAlreadyJoined()
+        }
+        .onChange(of: shouldNavigateToPortal) { oldValue, newValue in
+            if newValue {
+                // Navigate to portal tab
+                navigationState.selectedTab = .portal
+                // Dismiss this view to go back to root
+                dismiss()
+            }
         }
     }
     

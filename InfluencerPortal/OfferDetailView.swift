@@ -14,6 +14,7 @@ struct OfferDetailView: View {
     @StateObject private var offerService = FirebaseOfferService.shared
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var navigationState: InfluencerNavigationState
+    @Binding var shouldNavigateToPortal: Bool
     
     var body: some View {
         ScrollView {
@@ -230,8 +231,9 @@ struct OfferDetailView: View {
         }
         .alert("Success! 🎉", isPresented: $showSuccessAlert) {
             Button("View My Offers") {
-                // Navigate to portal tab and dismiss this view
-                navigationState.navigateToPortal()
+                // Set flag to navigate to portal
+                shouldNavigateToPortal = true
+                // Dismiss this view
                 dismiss()
             }
         } message: {
