@@ -10,6 +10,7 @@ struct InfluencerActiveOffersView: View {
     @State private var availableOffers: [FirebaseOffer] = []
     @State private var isLoadingJoined = true
     @State private var selectedSegment = 0
+    @EnvironmentObject var navigationState: InfluencerNavigationState
     
     var body: some View {
         VStack(spacing: 0) {
@@ -34,12 +35,14 @@ struct InfluencerActiveOffersView: View {
                         } else {
                             ForEach(joinedOffers) { offer in
                                 InfluencerJoinedOfferCard(offer: offer)
+                                    .environmentObject(navigationState)
                             }
                         }
                     } else {
                         // Show available offers
                         ForEach(availableOffers) { offer in
                             InfluencerAvailableOfferCard(offer: offer)
+                                .environmentObject(navigationState)
                         }
                         
                         if availableOffers.isEmpty {
@@ -84,9 +87,12 @@ struct InfluencerActiveOffersView: View {
 // MARK: - Joined Offer Card
 struct InfluencerJoinedOfferCard: View {
     let offer: FirebaseOffer
+    @EnvironmentObject var navigationState: InfluencerNavigationState
     
     var body: some View {
-        NavigationLink(destination: InfluencerRestaurantDetailView(offer: offer)) {
+        NavigationLink(destination: InfluencerRestaurantDetailView(offer: offer)
+            .environmentObject(navigationState)
+        ) {
             VStack(alignment: .leading, spacing: 12) {
                 // Status Badge
                 HStack {
@@ -166,9 +172,12 @@ struct InfluencerJoinedOfferCard: View {
 // MARK: - Available Offer Card
 struct InfluencerAvailableOfferCard: View {
     let offer: FirebaseOffer
+    @EnvironmentObject var navigationState: InfluencerNavigationState
     
     var body: some View {
-        NavigationLink(destination: InfluencerRestaurantDetailView(offer: offer)) {
+        NavigationLink(destination: InfluencerRestaurantDetailView(offer: offer)
+            .environmentObject(navigationState)
+        ) {
             VStack(alignment: .leading, spacing: 12) {
                 // Business Info
                 HStack {

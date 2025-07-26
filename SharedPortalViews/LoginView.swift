@@ -43,13 +43,16 @@ struct LoginView: View {
                 )
             }
             .navigationDestination(isPresented: $navigateInfluencer) {
-                InfluencerView()
+                // UPDATED: Navigate to InfluencerNavigationContainer
+                InfluencerNavigationContainer()
+                    .navigationBarHidden(true)
             }
             .navigationDestination(isPresented: $navigateBizz) {
                 // Check if user has created business
                 if let user = userService.currentUser, user.hasCreatedBusiness {
                     // Go directly to registered view with bottom navigation
                     BizzNavigationContainer()
+                        .navigationBarHidden(true)
                 } else {
                     // Go to signup flow (BizzPortalView without bottom nav)
                     BizzPortalView()
@@ -371,4 +374,4 @@ struct ModernJoinButton: View {
             }
         }, perform: {})
     }
-}   
+}

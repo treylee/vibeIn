@@ -9,10 +9,11 @@ struct OfferDetailView: View {
     @State private var isJoining = false
     @State private var hasJoinedOffer = false
     @State private var showAlreadyJoinedAlert = false
-    @State private var navigateToDashboard = false
+    @State private var showSuccessAlert = false
     @StateObject private var influencerService = FirebaseInfluencerService.shared
     @StateObject private var offerService = FirebaseOfferService.shared
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var navigationState: InfluencerNavigationState
     
     var body: some View {
         ScrollView {
@@ -211,11 +212,6 @@ struct OfferDetailView: View {
             .padding(.bottom, 30)
         }
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(isPresented: $navigateToDashboard) {
-            // Navigate to the main influencer view with dashboard selected
-            InfluencerView()
-                .navigationBarBackButtonHidden(true)
-        }
         .onAppear {
             checkIfAlreadyJoined()
         }
@@ -231,6 +227,15 @@ struct OfferDetailView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("You have already joined this offer. Check your active offers to see the details.")
+        }
+        .alert("Success! 🎉", isPresented: $showSuccessAlert) {
+            Button("View My Offers") {
+                // Navigate to portal tab and dismiss this view
+                navigationState.navigateToPortal()
+                dismiss()
+            }
+        } message: {
+            Text("You've successfully joined this offer! You can find it in your active offers.")
         }
     }
     
@@ -291,8 +296,8 @@ struct OfferDetailView: View {
                     // Post notification to refresh offers
                     NotificationCenter.default.post(name: NSNotification.Name("OfferJoined"), object: nil)
                     
-                    // Navigate to dashboard
-                    self.navigateToDashboard = true
+                    // Show success alert
+                    self.showSuccessAlert = true
                     
                 case .failure(let error):
                     print("❌ Error joining offer: \(error.localizedDescription)")

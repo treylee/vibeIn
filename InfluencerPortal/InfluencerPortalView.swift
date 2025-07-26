@@ -8,63 +8,63 @@ struct InfluencerPortalView: View {
     @State private var selectedTab = 0
     @State private var influencerReviews: [InfluencerReview] = []
     @State private var isLoadingReviews = false
+    @EnvironmentObject var navigationState: InfluencerNavigationState
     
     var body: some View {
-        NavigationStack {
-            ZStack {
-                // Background gradient
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color.purple.opacity(0.1),
-                        Color.pink.opacity(0.1),
-                        Color.orange.opacity(0.05)
-                    ]),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
-                
-                if let influencer = influencerService.currentInfluencer {
-                    VStack(spacing: 0) {
-                        // Header
-                        InfluencerPortalHeader(influencer: influencer)
+        ZStack {
+            // Background gradient
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.purple.opacity(0.1),
+                    Color.pink.opacity(0.1),
+                    Color.orange.opacity(0.05)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            
+            if let influencer = influencerService.currentInfluencer {
+                VStack(spacing: 0) {
+                    // Header
+                    InfluencerPortalHeader(influencer: influencer)
+                    
+                    // Tab View
+                    InfluencerTabBar(selectedTab: $selectedTab)
+                    
+                    // Content
+                    TabView(selection: $selectedTab) {
+                        // Active Offers Tab
+                        InfluencerActiveOffersView()
+                            .environmentObject(navigationState)
+                            .tag(0)
                         
-                        // Tab View
-                        InfluencerTabBar(selectedTab: $selectedTab)
+                        // Past Reviews Tab
+                        PastReviewsView(reviews: influencerReviews, isLoading: isLoadingReviews)
+                            .tag(1)
                         
-                        // Content
-                        TabView(selection: $selectedTab) {
-                            // Active Offers Tab
-                            InfluencerActiveOffersView()
-                                .tag(0)
-                            
-                            // Past Reviews Tab
-                            PastReviewsView(reviews: influencerReviews, isLoading: isLoadingReviews)
-                                .tag(1)
-                            
-                            // Analytics Tab
-                            InfluencerAnalyticsView(influencer: influencer)
-                                .tag(2)
-                        }
-                        .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+                        // Analytics Tab
+                        InfluencerAnalyticsView(influencer: influencer)
+                            .tag(2)
                     }
-                } else {
-                    // Loading state
-                    VStack(spacing: 20) {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .purple))
-                            .scaleEffect(1.5)
-                        
-                        Text("Creating your profile...")
-                            .font(.headline)
-                            .foregroundColor(.purple)
-                    }
+                    .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+                }
+            } else {
+                // Loading state
+                VStack(spacing: 20) {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .purple))
+                        .scaleEffect(1.5)
+                    
+                    Text("Creating your profile...")
+                        .font(.headline)
+                        .foregroundColor(.purple)
                 }
             }
-            .navigationBarHidden(true)
-            .onAppear {
-                loadInfluencerReviews()
-            }
+        }
+        .padding(.bottom, 80) // Account for bottom navigation
+        .onAppear {
+            loadInfluencerReviews()
         }
     }
     
@@ -284,10 +284,13 @@ struct TabBarButton: View {
 struct ActiveOfferCard: View {
     let offer: FirebaseOffer
     @State private var navigateToDetail = false
+    @EnvironmentObject var navigationState: InfluencerNavigationState
     
     var body: some View {
         // CHANGED: Navigate to InfluencerRestaurantDetailView instead of OfferDetailView
-        NavigationLink(destination: InfluencerRestaurantDetailView(offer: offer)) {
+        NavigationLink(destination: InfluencerRestaurantDetailView(offer: offer)
+            .environmentObject(navigationState)
+        ) {
             VStack(alignment: .leading, spacing: 12) {
                 // Business Info
                 HStack {
