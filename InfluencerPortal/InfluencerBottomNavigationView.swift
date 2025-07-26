@@ -307,6 +307,5 @@ struct InfluencerProfilePlaceholder: View {
                 Spacer()
             }
         }
-        .padding(.bottom, 80)
     }
 }

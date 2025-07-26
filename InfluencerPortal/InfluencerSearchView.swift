@@ -175,7 +175,6 @@ struct InfluencerSearchView: View {
                 Spacer()
             }
         }
-        .padding(.bottom, 80) // Ensure content doesn't overlap bottom navigation
         .onAppear {
             loadData()
         }

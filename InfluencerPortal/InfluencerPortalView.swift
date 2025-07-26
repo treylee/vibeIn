@@ -62,7 +62,6 @@ struct InfluencerPortalView: View {
                 }
             }
         }
-        .padding(.bottom, 80) // Account for bottom navigation
         .onAppear {
             loadInfluencerReviews()
         }
