@@ -526,6 +526,7 @@ struct VibeEmptyState: View {
 struct VibeInfluencerSheet: View {
     let influencer: FirebaseInfluencer
     @Environment(\.dismiss) private var dismiss
+    @State private var showStartVibeModal = false
     
     var body: some View {
         NavigationView {
@@ -637,8 +638,11 @@ struct VibeInfluencerSheet: View {
                             }
                         }
                         
-                        // Contact Button
-                        Button(action: {}) {
+                        // Contact Button - FIXED WITH ACTION
+                        Button(action: {
+                            print("🎯 Start a Vibe button clicked for influencer: \(influencer.userName)")
+                            showStartVibeModal = true
+                        }) {
                             HStack {
                                 Image(systemName: "envelope.fill")
                                 Text("Start a Vibe")
@@ -674,6 +678,12 @@ struct VibeInfluencerSheet: View {
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showStartVibeModal) {
+            StartVibeModal(
+                influencer: influencer,
+                selectedOffer: nil
+            )
         }
     }
 }
