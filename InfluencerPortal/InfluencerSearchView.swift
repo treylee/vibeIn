@@ -57,9 +57,9 @@ struct InfluencerSearchView: View {
             )
             .ignoresSafeArea()
             
-            VStack(spacing: 20) {
-                // Header
-                VStack(spacing: 16) {
+            VStack(spacing: 16) { // Reduced spacing for more compact layout
+                // Header (restored from original)
+                VStack(spacing: 12) { // Reduced spacing
                     ZStack {
                         Circle()
                             .fill(
@@ -69,11 +69,11 @@ struct InfluencerSearchView: View {
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .frame(width: 100, height: 100)
+                            .frame(width: 80, height: 80) // Smaller circle
                             .blur(radius: 20)
                         
                         Image(systemName: "sparkle.magnifyingglass")
-                            .font(.system(size: 60, weight: .light))
+                            .font(.system(size: 50, weight: .light)) // Smaller icon
                             .foregroundStyle(
                                 LinearGradient(
                                     colors: [.pink, .purple],
@@ -84,7 +84,7 @@ struct InfluencerSearchView: View {
                     }
                     
                     Text("Discover Offers")
-                        .font(.system(size: 28, weight: .semibold, design: .rounded))
+                        .font(.system(size: 24, weight: .semibold, design: .rounded)) // Smaller text
                         .foregroundStyle(
                             LinearGradient(
                                 colors: [.pink, .purple],
@@ -94,14 +94,15 @@ struct InfluencerSearchView: View {
                         )
                     
                     Text("Find collaboration opportunities")
-                        .font(.system(size: 16, design: .rounded))
+                        .font(.system(size: 14, design: .rounded)) // Smaller text
                         .foregroundColor(.gray)
                 }
-                .padding(.top, 60)
+                .padding(.top, 40) // Reduced top padding
                 
-                // Toggle with vibe style
+                // Smaller Toggle
                 InfluencerVibeToggle(selectedMode: $searchMode)
-                    .padding(.horizontal, 40)
+                    .padding(.horizontal, 80) // More horizontal padding for less width
+                    .scaleEffect(0.95) // Slightly larger than before
                 
                 // Search Bar
                 HStack {
@@ -132,10 +133,10 @@ struct InfluencerSearchView: View {
                 // Results
                 if isLoading {
                     InfluencerVibeLoadingIndicator()
-                        .padding(.top, 40)
+                        .padding(.top, 20)
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: 16) {
+                        LazyVStack(spacing: 12) { // Reduced spacing between items
                             if searchMode == .businesses {
                                 if filteredOffers.isEmpty {
                                     InfluencerVibeEmptyState(
@@ -165,14 +166,18 @@ struct InfluencerSearchView: View {
                                     }
                                 }
                             }
+                            
+                            // Extra padding at the bottom to prevent overflow
+                            Color.clear
+                                .frame(height: 20)
                         }
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 100) // Add padding for bottom navigation
+                        .padding(.bottom, 80) // Padding for bottom navigation
                     }
-                    .padding(.top, 10)
+                    .padding(.top, 8)
                 }
                 
-                Spacer()
+                Spacer(minLength: 0) // Remove extra spacer at bottom
             }
         }
         .onAppear {
@@ -201,7 +206,7 @@ struct InfluencerSearchView: View {
     }
 }
 
-// MARK: - Influencer Vibe Toggle
+// MARK: - Influencer Vibe Toggle (Smaller version)
 struct InfluencerVibeToggle: View {
     @Binding var selectedMode: InfluencerSearchMode
     @Namespace private var animation
@@ -214,22 +219,23 @@ struct InfluencerVibeToggle: View {
                         selectedMode = mode
                     }
                 }) {
-                    VStack(spacing: 4) {
-                        HStack(spacing: 6) {
+                    VStack(spacing: 2) {
+                        HStack(spacing: 4) {
                             Image(systemName: mode == .businesses ? "gift.fill" : "calendar.badge.plus")
-                                .font(.system(size: 16, weight: .medium, design: .rounded))
+                                .font(.system(size: 14, weight: .medium, design: .rounded))
                             Text(mode == .businesses ? "Offers" : "Events")
-                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
                         }
                         .foregroundColor(selectedMode == mode ? .white : .gray)
-                        .padding(.vertical, 12)
+                        .padding(.vertical, 10) // Slightly more vertical padding
+                        .padding(.horizontal, 20) // Slightly more horizontal padding
                         .frame(maxWidth: .infinity)
                     }
                 }
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: 16)
                 .fill(
                     LinearGradient(
                         colors: [.pink, .purple],
@@ -238,7 +244,7 @@ struct InfluencerVibeToggle: View {
                     )
                 )
         )
-        .shadow(color: Color.purple.opacity(0.3), radius: 10, y: 5)
+        .shadow(color: Color.purple.opacity(0.3), radius: 8, y: 3)
     }
 }
 

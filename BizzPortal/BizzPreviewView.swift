@@ -45,7 +45,18 @@ struct BizzPreviewView: View {
     
     var body: some View {
         ZStack {
-            BizzPreviewBackground()
+            // Updated background to match app style
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.blue.opacity(0.1),
+                    Color.purple.opacity(0.1),
+                    Color.pink.opacity(0.05)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            
             BizzPreviewContent(
                 businessName: businessName,
                 address: address,
@@ -65,7 +76,8 @@ struct BizzPreviewView: View {
         .navigationBarBackButtonHidden(false)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                EmptyView()
+                Text("Preview")
+                    .font(.headline)
             }
         }
         .onAppear {
@@ -101,9 +113,9 @@ struct BizzPreviewBackground: View {
     var body: some View {
         LinearGradient(
             gradient: Gradient(colors: [
-                Color.orange.opacity(0.3),
-                Color.pink.opacity(0.4),
-                Color.purple.opacity(0.3)
+                Color.blue.opacity(0.1),
+                Color.purple.opacity(0.1),
+                Color.pink.opacity(0.05)
             ]),
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -152,17 +164,45 @@ struct BizzPreviewContent: View {
 
 struct BizzPreviewHeader: View {
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "eye.fill")
-                .font(.system(size: 60))
-                .foregroundColor(.white)
-                .shadow(radius: 8)
+        VStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.blue.opacity(0.3), Color.purple.opacity(0.3)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 80, height: 80)
+                    .blur(radius: 20)
+                
+                Image(systemName: "eye.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.blue, .purple],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
             
-            Text("Preview Your Business Page")
+            Text("Preview Your")
                 .font(.title2)
+                .fontWeight(.light)
+                .foregroundColor(.gray)
+            
+            Text("Business Page")
+                .font(.title)
                 .fontWeight(.bold)
-                .foregroundColor(.white)
-                .multilineTextAlignment(.center)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.blue, .purple],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
         }
         .padding(.top, 20)
     }
@@ -258,7 +298,6 @@ struct BizzPreviewCard: View {
 
 // Include all the other components from the original file...
 // (BizzBasicInfo, BizzMediaToggleSection, BizzMediaDisplaySection, etc.)
-// I'm keeping them the same as in the original file to save space
 
 struct BizzBasicInfo: View {
     let businessName: String

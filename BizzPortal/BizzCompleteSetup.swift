@@ -1,4 +1,4 @@
-// Path: vibeIn/BizzPortal/Components/BizzCompleteSetupButton.swift
+// Path: vibeIn/BizzPortal/BizzCompleteSetup.swift
 
 import SwiftUI
 import FirebaseFirestore
@@ -28,29 +28,31 @@ struct BizzCompleteSetupButton: View {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .scaleEffect(0.8)
-                    Text("Saving to Firebase...")
-                        .font(.headline)
+                    Text("Creating...")
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
                 } else {
                     Text("Complete Setup")
-                        .font(.headline)
-                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    Image(systemName: "arrow.right.circle.fill")
+                        .font(.system(size: 20))
                 }
             }
             .foregroundColor(.white)
-            .padding()
+            .padding(.vertical, 16)
             .frame(maxWidth: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [.green, .teal]),
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
+                LinearGradient(
+                    gradient: Gradient(colors: [.blue, .purple]),
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
             )
+            .cornerRadius(20)
+            .shadow(color: Color.blue.opacity(0.3), radius: 15, y: 8)
         }
         .disabled(firebaseService.isLoading)
+        .scaleEffect(firebaseService.isLoading ? 0.95 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: firebaseService.isLoading)
         .alert("Success! 🎉", isPresented: $showSuccessAlert) {
             Button("View Dashboard") {
                 navigateToRegisteredPortal = true

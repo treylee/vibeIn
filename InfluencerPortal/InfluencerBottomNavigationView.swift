@@ -49,6 +49,12 @@ struct InfluencerNavigationContainer: View {
             loadInfluencerProfile()
             setupTabBarAppearance()
         }
+        .onReceive(influencerService.$currentInfluencer) { influencer in
+            if let influencer = influencer {
+                navigationState.currentInfluencer = influencer
+                print("👤 Influencer updated in navigation state: \(influencer.userName)")
+            }
+        }
         .onChange(of: navigationState.selectedTab) { oldValue, newValue in
             print("📱 Tab changed from \(oldValue.rawValue) to \(newValue.rawValue)")
             if newValue == .profile {
@@ -67,9 +73,18 @@ struct InfluencerNavigationContainer: View {
     }
     
     private func loadInfluencerProfile() {
+        // Check if influencer is already loaded in the service
         if let influencer = influencerService.currentInfluencer {
             navigationState.currentInfluencer = influencer
             print("👤 Influencer loaded: \(influencer.userName)")
+        } else {
+            // Wait for influencer to be created/loaded
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                if let influencer = influencerService.currentInfluencer {
+                    navigationState.currentInfluencer = influencer
+                    print("👤 Influencer loaded after delay: \(influencer.userName)")
+                }
+            }
         }
     }
 }

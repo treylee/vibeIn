@@ -180,7 +180,7 @@ struct InfluencerPortalHeader: View {
             .padding(.vertical, 12)
             .background(Color.gray.opacity(0.05))
         }
-        .background(Color.white)
+        .background(Color.white.opacity(0.95))
         .shadow(color: Color.black.opacity(0.05), radius: 5, y: 2)
     }
 }
