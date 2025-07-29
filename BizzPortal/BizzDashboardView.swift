@@ -64,6 +64,10 @@ struct BusinessDashboardView: View {
                     // Analytics Grid
                     AnalyticsGridView(business: business, selectedTimeframe: $selectedTimeframe)
                     
+                    // Category & Tags Section
+                    CategoryAndTagsSection(business: business)
+                        .padding(.horizontal)
+                    
                     // Reviews & Vibes Section
                     HStack(spacing: 16) {
                         ReviewsCard(business: business)
@@ -133,6 +137,330 @@ struct BusinessDashboardView: View {
                 center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
                 span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
             )
+        }
+    }
+}
+
+// MARK: - Category & Tags Section
+struct CategoryAndTagsSection: View {
+    let business: FirebaseBusiness
+    @State private var isEditing = false
+    @State private var newTag = ""
+    @State private var customTags: [String] = ["organic", "late-night", "wifi", "pet-friendly", "outdoor-seating"]
+    @State private var showingCategoryEditor = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            // Section Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Category & Tags")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
+                    
+                    Text("Help customers find you")
+                        .font(.caption)
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
+                }
+                
+                Spacer()
+                
+                Button(action: { isEditing.toggle() }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: isEditing ? "checkmark" : "pencil")
+                        Text(isEditing ? "Done" : "Edit")
+                    }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(isEditing ? .green : Color(red: 0.4, green: 0.2, blue: 0.6))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(isEditing ? Color.green.opacity(0.1) : Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.1))
+                    )
+                }
+            }
+            
+            // Main Category
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Main Category", systemImage: "folder.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
+                
+                HStack {
+                    CategoryBadge(
+                        category: business.category,
+                        icon: iconForCategory(business.category),
+                        color: colorForCategory(business.category)
+                    )
+                    
+                    if isEditing {
+                        Button(action: { showingCategoryEditor = true }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .font(.caption)
+                                Text("Change")
+                                    .font(.caption)
+                            }
+                            .foregroundColor(.blue)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(6)
+                        }
+                    }
+                    
+                    Spacer()
+                }
+            }
+            
+            // Subtypes/Tags
+            VStack(alignment: .leading, spacing: 12) {
+                Label("Tags", systemImage: "tag.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
+                
+                FlowLayout(spacing: 8) {
+                    // Predefined subtypes
+                    ForEach(getSubtypesForCategory(business.category), id: \.self) { subtype in
+                        TagChip(
+                            text: subtype,
+                            color: colorForCategory(business.category),
+                            isRemovable: false
+                        )
+                    }
+                    
+                    // Custom tags
+                    ForEach(customTags, id: \.self) { tag in
+                        TagChip(
+                            text: tag,
+                            color: .purple,
+                            isRemovable: isEditing,
+                            onRemove: {
+                                withAnimation {
+                                    customTags.removeAll { $0 == tag }
+                                }
+                            }
+                        )
+                    }
+                    
+                    // Add new tag field
+                    if isEditing {
+                        AddTagField(
+                            newTag: $newTag,
+                            onAdd: {
+                                if !newTag.isEmpty && !customTags.contains(newTag) {
+                                    withAnimation {
+                                        customTags.append(newTag)
+                                        newTag = ""
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+            
+            // Quick Stats
+            HStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(customTags.count + getSubtypesForCategory(business.category).count)")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                    Text("Total Tags")
+                        .font(.caption)
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
+                }
+                
+                Divider()
+                    .frame(height: 30)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(customTags.count)")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(.purple)
+                    Text("Custom Tags")
+                        .font(.caption)
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
+                }
+                
+                Spacer()
+                
+                if isEditing {
+                    Button(action: saveTags) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                            Text("Save")
+                        }
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color(red: 0.4, green: 0.2, blue: 0.6),
+                                    Color(red: 0.5, green: 0.3, blue: 0.7)
+                                ]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(8)
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+        .sheet(isPresented: $showingCategoryEditor) {
+            // Category editor modal would go here
+            Text("Category Editor - Coming Soon")
+        }
+    }
+    
+    private func iconForCategory(_ category: String) -> String {
+        switch category.lowercased() {
+        case "restaurant", "food & dining": return "fork.knife"
+        case "cafe": return "cup.and.saucer"
+        case "retail", "retail & shopping": return "bag.fill"
+        case "fitness", "health & wellness": return "figure.run"
+        case "beauty": return "sparkles"
+        case "technology & innovation": return "cpu"
+        case "business & professional": return "briefcase.fill"
+        default: return "building.2"
+        }
+    }
+    
+    private func colorForCategory(_ category: String) -> Color {
+        switch category.lowercased() {
+        case "restaurant", "food & dining": return .orange
+        case "cafe": return .brown
+        case "retail", "retail & shopping": return .pink
+        case "fitness", "health & wellness": return .green
+        case "beauty": return .purple
+        case "technology & innovation": return .blue
+        case "business & professional": return .indigo
+        default: return .gray
+        }
+    }
+    
+    private func getSubtypesForCategory(_ category: String) -> [String] {
+        // This would ideally come from the saved business data
+        switch category.lowercased() {
+        case "restaurant", "food & dining":
+            return ["Italian", "Casual Dining"]
+        case "cafe":
+            return ["Coffee Shop", "Bakery"]
+        case "retail", "retail & shopping":
+            return ["Clothing", "Accessories"]
+        default:
+            return ["General"]
+        }
+    }
+    
+    private func saveTags() {
+        // Here you would save the tags to Firebase
+        print("Saving tags: \(customTags)")
+        isEditing = false
+    }
+}
+
+// MARK: - Category Badge
+struct CategoryBadge: View {
+    let category: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundColor(.white)
+            
+            Text(category)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.white)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [color, color.opacity(0.8)]),
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .cornerRadius(20)
+    }
+}
+
+// MARK: - Tag Chip
+struct TagChip: View {
+    let text: String
+    let color: Color
+    let isRemovable: Bool
+    var onRemove: (() -> Void)?
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(text)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(color)
+            
+            if isRemovable {
+                Button(action: { onRemove?() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(color.opacity(0.6))
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(color.opacity(0.1))
+        .overlay(
+            RoundedRectangle(cornerRadius: 15)
+                .stroke(color.opacity(0.3), lineWidth: 1)
+        )
+        .cornerRadius(15)
+    }
+}
+
+// MARK: - Add Tag Field
+struct AddTagField: View {
+    @Binding var newTag: String
+    let onAdd: () -> Void
+    @FocusState private var isFocused: Bool
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            TextField("Add tag", text: $newTag)
+                .font(.system(size: 12))
+                .focused($isFocused)
+                .onSubmit {
+                    onAdd()
+                }
+            
+            Button(action: onAdd) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 16))
+                    .foregroundColor(.purple)
+            }
+            .disabled(newTag.isEmpty)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color.purple.opacity(0.05))
+        .overlay(
+            RoundedRectangle(cornerRadius: 15)
+                .stroke(Color.purple.opacity(0.3), lineWidth: 1)
+        )
+        .cornerRadius(15)
+        .onAppear {
+            isFocused = true
         }
     }
 }

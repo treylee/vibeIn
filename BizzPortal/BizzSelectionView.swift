@@ -79,9 +79,10 @@ struct BizzSelectionView: View {
         }
         .navigationDestination(isPresented: $navigateToPreview) {
             if let place = selectedPlace {
-                BizzPreviewView(
+                BizzTagSelectionView(
                     businessName: place.name,
-                    address: place.formattedAddress
+                    address: place.formattedAddress,
+                    placeID: place.placeId
                 )
             }
         }
