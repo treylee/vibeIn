@@ -9,7 +9,7 @@ struct BizzTagSelectionView: View {
     
     @State private var selectedMainCategory: MainCategory?
     @State private var selectedSubtypes: Set<String> = []
-    @State private var customTags: String = ""
+    @State private var customTags: [String] = []
     @State private var navigateToPreview = false
     @Environment(\.dismiss) private var dismiss
     
@@ -98,7 +98,8 @@ struct BizzTagSelectionView: View {
                         if let category = selectedMainCategory {
                             BizzSubtypesSection(
                                 category: category,
-                                selectedSubtypes: $selectedSubtypes
+                                selectedSubtypes: $selectedSubtypes,
+                                customTags: customTags
                             )
                         }
                         
@@ -128,7 +129,12 @@ struct BizzTagSelectionView: View {
             BizzPreviewView(
                 businessName: businessName,
                 address: address,
-                placeID: placeID
+                placeID: placeID,
+                categoryData: CategoryData(
+                    mainCategory: selectedMainCategory?.rawValue ?? "",
+                    subtypes: Array(selectedSubtypes.filter { !customTags.contains($0) }),
+                    customTags: customTags
+                )
             )
         }
     }
@@ -311,6 +317,7 @@ struct BizzMainCategoryCard: View {
 struct BizzSubtypesSection: View {
     let category: BizzTagSelectionView.MainCategory
     @Binding var selectedSubtypes: Set<String>
+    let customTags: [String]
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -325,16 +332,35 @@ struct BizzSubtypesSection: View {
             .padding(.horizontal)
             
             FlowLayout(spacing: 12) {
+                // Category subtypes
                 ForEach(category.subtypes, id: \.self) { subtype in
                     BizzSubtypeChip(
                         text: subtype,
                         isSelected: selectedSubtypes.contains(subtype),
                         color: category.color,
+                        isCustom: false,
                         action: {
                             if selectedSubtypes.contains(subtype) {
                                 selectedSubtypes.remove(subtype)
                             } else {
                                 selectedSubtypes.insert(subtype)
+                            }
+                        }
+                    )
+                }
+                
+                // Custom tags
+                ForEach(customTags, id: \.self) { tag in
+                    BizzSubtypeChip(
+                        text: tag,
+                        isSelected: selectedSubtypes.contains(tag),
+                        color: .orange,
+                        isCustom: true,
+                        action: {
+                            if selectedSubtypes.contains(tag) {
+                                selectedSubtypes.remove(tag)
+                            } else {
+                                selectedSubtypes.insert(tag)
                             }
                         }
                     )
@@ -358,6 +384,7 @@ struct BizzSubtypeChip: View {
     let text: String
     let isSelected: Bool
     let color: Color
+    let isCustom: Bool
     let action: () -> Void
     
     var body: some View {
@@ -369,6 +396,10 @@ struct BizzSubtypeChip: View {
                 }
                 Text(text)
                     .font(.subheadline)
+                if isCustom {
+                    Image(systemName: "sparkle")
+                        .font(.caption2)
+                }
             }
             .foregroundColor(isSelected ? .white : color)
             .padding(.horizontal, 16)
@@ -390,7 +421,9 @@ struct BizzSubtypeChip: View {
 
 // MARK: - Custom Tags Section
 struct BizzCustomTagsSection: View {
-    @Binding var customTags: String
+    @Binding var customTags: [String]
+    @State private var newTag = ""
+    @FocusState private var isTextFieldFocused: Bool
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -401,19 +434,33 @@ struct BizzCustomTagsSection: View {
                     .font(.headline)
             }
             
-            Text("Add your own tags separated by commas")
+            Text("Add your own custom tags")
                 .font(.caption)
                 .foregroundColor(.secondary)
             
-            TextField("e.g., organic, vegan-friendly, late-night", text: $customTags)
-                .textFieldStyle(PlainTextFieldStyle())
-                .padding()
-                .background(Color.white)
-                .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-                )
+            HStack(spacing: 8) {
+                TextField("e.g., organic, late-night", text: $newTag)
+                    .textFieldStyle(PlainTextFieldStyle())
+                    .focused($isTextFieldFocused)
+                    .onSubmit {
+                        addTag()
+                    }
+                    .padding()
+                    .background(Color.white)
+                    .cornerRadius(12)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                    )
+                
+                Button(action: addTag) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(newTag.isEmpty ? .gray : .orange)
+                }
+                .disabled(newTag.isEmpty)
+                .animation(.easeInOut(duration: 0.2), value: newTag.isEmpty)
+            }
         }
         .padding()
         .background(
@@ -421,6 +468,16 @@ struct BizzCustomTagsSection: View {
                 .fill(Color.orange.opacity(0.05))
         )
         .padding(.horizontal)
+    }
+    
+    private func addTag() {
+        let trimmedTag = newTag.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedTag.isEmpty && !customTags.contains(trimmedTag) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                customTags.append(trimmedTag)
+                newTag = ""
+            }
+        }
     }
 }
 
@@ -453,3 +510,5 @@ struct BizzContinueButton: View {
         .animation(.easeInOut(duration: 0.2), value: isEnabled)
     }
 }
+
+// FlowLayout is already defined elsewhere in the project

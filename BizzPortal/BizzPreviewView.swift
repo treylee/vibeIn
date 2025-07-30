@@ -3,6 +3,13 @@
 import SwiftUI
 import MapKit
 
+// MARK: - Category Data Model
+struct CategoryData {
+    let mainCategory: String
+    let subtypes: [String]
+    let customTags: [String]
+}
+
 // MARK: - Sample Review Data (keeping only Apple reviews)
 let sampleAppleReviews = [
     BizzReview(id: 5, author: "Jennifer K.", rating: 5, text: "Found this gem through the app! The service was outstanding and the food exceeded expectations. Perfect date night spot.", date: "1 week ago", platform: "Apple Maps"),
@@ -24,6 +31,8 @@ struct BizzPreviewView: View {
     let businessName: String
     let address: String
     let placeID: String?
+    let categoryData: CategoryData? // NEW: Added category data
+    
     @State private var showingImagePicker = false
     @State private var showingVideoPicker = false
     @State private var selectedImage: UIImage? = nil
@@ -37,10 +46,11 @@ struct BizzPreviewView: View {
         span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
     )
     
-    init(businessName: String, address: String, placeID: String? = nil) {
+    init(businessName: String, address: String, placeID: String? = nil, categoryData: CategoryData? = nil) {
         self.businessName = businessName
         self.address = address
         self.placeID = placeID ?? "ChIJ7YbfORN-hYARoy9V0MUxYy4"
+        self.categoryData = categoryData
     }
     
     var body: some View {
@@ -61,6 +71,7 @@ struct BizzPreviewView: View {
                 businessName: businessName,
                 address: address,
                 placeID: placeID,
+                categoryData: categoryData,
                 showingImagePicker: $showingImagePicker,
                 showingVideoPicker: $showingVideoPicker,
                 selectedImage: $selectedImage,
@@ -128,6 +139,7 @@ struct BizzPreviewContent: View {
     let businessName: String
     let address: String
     let placeID: String?
+    let categoryData: CategoryData?
     @Binding var showingImagePicker: Bool
     @Binding var showingVideoPicker: Bool
     @Binding var selectedImage: UIImage?
@@ -147,6 +159,7 @@ struct BizzPreviewContent: View {
                     businessName: businessName,
                     address: address,
                     placeID: placeID,
+                    categoryData: categoryData,
                     showingImagePicker: $showingImagePicker,
                     showingVideoPicker: $showingVideoPicker,
                     selectedImage: $selectedImage,
@@ -212,6 +225,7 @@ struct BizzPreviewCard: View {
     let businessName: String
     let address: String
     let placeID: String?
+    let categoryData: CategoryData?
     @Binding var showingImagePicker: Bool
     @Binding var showingVideoPicker: Bool
     @Binding var selectedImage: UIImage?
@@ -240,6 +254,11 @@ struct BizzPreviewCard: View {
     var body: some View {
         VStack(spacing: 20) {
             BizzBasicInfo(businessName: businessName, address: address)
+            
+            // Display Category Data if available
+            if let categoryData = categoryData {
+                BizzCategoryPreview(categoryData: categoryData)
+            }
             
             if hasSelectedMedia {
                 BizzMediaToggleSection(
@@ -273,14 +292,15 @@ struct BizzPreviewCard: View {
                 loadingReviews: loadingReviews
             )
             
-            // Complete Setup Button
+            // Complete Setup Button with category data
             BizzCompleteSetupButton(
                 businessName: businessName,
                 address: address,
                 placeID: placeID,
                 selectedImage: selectedImage,
                 selectedVideoURL: selectedVideoURL,
-                liveGoogleReviews: liveGoogleReviews
+                liveGoogleReviews: liveGoogleReviews,
+                categoryData: categoryData
             )
         }
         .padding()
@@ -293,6 +313,69 @@ struct BizzPreviewCard: View {
                 )
         )
         .padding(.horizontal)
+    }
+}
+
+// NEW: Category Preview Component
+struct BizzCategoryPreview: View {
+    let categoryData: CategoryData
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "tag.fill")
+                    .foregroundColor(.purple)
+                Text("Categories & Tags")
+                    .font(.headline)
+                    .foregroundColor(.black)
+                Spacer()
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                // Main Category
+                HStack {
+                    Text("Main:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text(categoryData.mainCategory)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.purple)
+                }
+                
+                // All tags
+                let allTags = categoryData.subtypes + categoryData.customTags
+                if !allTags.isEmpty {
+                    Text("Tags:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(allTags, id: \.self) { tag in
+                                Text(tag)
+                                    .font(.caption)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        categoryData.customTags.contains(tag) ?
+                                        Color.orange.opacity(0.1) :
+                                        Color.purple.opacity(0.1)
+                                    )
+                                    .foregroundColor(
+                                        categoryData.customTags.contains(tag) ?
+                                        .orange : .purple
+                                    )
+                                    .cornerRadius(15)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color.purple.opacity(0.05))
+        .cornerRadius(12)
     }
 }
 

@@ -30,6 +30,11 @@ struct FirebaseBusiness: Codable, Identifiable, Equatable {
     let latitude: Double?
     let longitude: Double?
     
+    // Category and Tags (NEW FIELDS)
+    let mainCategory: String?
+    let subtypes: [String]?
+    let customTags: [String]?
+    
     // MARK: - Equatable
     static func == (lhs: FirebaseBusiness, rhs: FirebaseBusiness) -> Bool {
         return lhs.id == rhs.id &&
@@ -61,5 +66,21 @@ struct FirebaseBusiness: Codable, Identifiable, Equatable {
     var displayReviewCount: String {
         guard let count = reviewCount, count > 0 else { return "No reviews" }
         return "\(count) review\(count == 1 ? "" : "s")"
+    }
+    
+    // New computed properties for tags
+    var allTags: [String] {
+        var tags: [String] = []
+        if let subtypes = subtypes {
+            tags.append(contentsOf: subtypes)
+        }
+        if let customTags = customTags {
+            tags.append(contentsOf: customTags)
+        }
+        return tags
+    }
+    
+    var hasCategories: Bool {
+        return mainCategory != nil || !(subtypes?.isEmpty ?? true) || !(customTags?.isEmpty ?? true)
     }
 }

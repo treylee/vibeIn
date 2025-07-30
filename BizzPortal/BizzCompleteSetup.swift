@@ -10,6 +10,7 @@ struct BizzCompleteSetupButton: View {
     let selectedImage: UIImage?
     let selectedVideoURL: URL?
     let liveGoogleReviews: [GPlaceDetails.Review]
+    let categoryData: CategoryData? // NEW: Added category data
     
     @StateObject private var firebaseService = FirebaseBusinessService.shared
     @StateObject private var userService = FirebaseUserService.shared
@@ -78,15 +79,16 @@ struct BizzCompleteSetupButton: View {
             return
         }
         
-        firebaseService.createBusinessWithId(
+        firebaseService.createBusinessWithCategoryData(
             name: businessName,
             address: address,
             placeID: placeID ?? "",
-            category: "Restaurant",
+            category: categoryData?.mainCategory ?? "General",
             offer: "Free Appetizer for Reviews",
             selectedImage: selectedImage,
             selectedVideoURL: selectedVideoURL,
-            googleReviews: liveGoogleReviews
+            googleReviews: liveGoogleReviews,
+            categoryData: categoryData
         ) { result in
             switch result {
             case .success(let (message, businessId)):

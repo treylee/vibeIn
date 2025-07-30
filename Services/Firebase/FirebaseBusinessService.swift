@@ -47,8 +47,8 @@ class FirebaseBusinessService: ObservableObject {
             }
     }
     
-    // MARK: - Create Business (Updated to return business ID)
-    func createBusinessWithId(
+    // MARK: - Create Business with Category Data (NEW)
+    func createBusinessWithCategoryData(
         name: String,
         address: String,
         placeID: String,
@@ -57,13 +57,14 @@ class FirebaseBusinessService: ObservableObject {
         selectedImage: UIImage? = nil,
         selectedVideoURL: URL? = nil,
         googleReviews: [GPlaceDetails.Review] = [],
-        completion: @escaping (Result<(String, String), Error>) -> Void // Returns (message, businessId)
+        categoryData: CategoryData? = nil,
+        completion: @escaping (Result<(String, String), Error>) -> Void
     ) {
         isLoading = true
-        print("🚀 Creating business: \(name)")
+        print("🚀 Creating business with categories: \(name)")
         
-        // For now, just save basic business data without media upload
-        let businessData: [String: Any] = [
+        // Build business data including category information
+        var businessData: [String: Any] = [
             "name": name,
             "address": address,
             "placeID": placeID,
@@ -83,6 +84,18 @@ class FirebaseBusinessService: ObservableObject {
             "longitude": -122.4194
         ]
         
+        // Add category data if provided
+        if let categoryData = categoryData {
+            businessData["mainCategory"] = categoryData.mainCategory
+            businessData["subtypes"] = categoryData.subtypes
+            businessData["customTags"] = categoryData.customTags
+            
+            print("📂 Adding category data:")
+            print("   - Main Category: \(categoryData.mainCategory)")
+            print("   - Subtypes: \(categoryData.subtypes)")
+            print("   - Custom Tags: \(categoryData.customTags)")
+        }
+        
         // Use addDocument which returns the document reference
         var docRef: DocumentReference? = nil
         docRef = db.collection(businessCollection).addDocument(data: businessData) { [weak self] error in
@@ -93,6 +106,7 @@ class FirebaseBusinessService: ObservableObject {
                     completion(.failure(error))
                 } else if let documentId = docRef?.documentID {
                     print("✅ Business saved to Firebase with ID: \(documentId)")
+                    print("✅ Category data saved successfully")
                     completion(.success(("Business created successfully!", documentId)))
                 } else {
                     print("❌ Error: Could not get document ID")
@@ -100,6 +114,33 @@ class FirebaseBusinessService: ObservableObject {
                 }
             }
         }
+    }
+    
+    // MARK: - Create Business (Updated to return business ID)
+    func createBusinessWithId(
+        name: String,
+        address: String,
+        placeID: String,
+        category: String,
+        offer: String,
+        selectedImage: UIImage? = nil,
+        selectedVideoURL: URL? = nil,
+        googleReviews: [GPlaceDetails.Review] = [],
+        completion: @escaping (Result<(String, String), Error>) -> Void // Returns (message, businessId)
+    ) {
+        // Call the new method without category data for backward compatibility
+        createBusinessWithCategoryData(
+            name: name,
+            address: address,
+            placeID: placeID,
+            category: category,
+            offer: offer,
+            selectedImage: selectedImage,
+            selectedVideoURL: selectedVideoURL,
+            googleReviews: googleReviews,
+            categoryData: nil,
+            completion: completion
+        )
     }
     
     // Keep the old method for backward compatibility
@@ -149,6 +190,15 @@ class FirebaseBusinessService: ObservableObject {
             }
             
             let business = try? snapshot?.data(as: FirebaseBusiness.self)
+            
+            // Debug print the retrieved data
+            if let business = business {
+                print("✅ Retrieved business: \(business.name)")
+                print("   - Main Category: \(business.mainCategory ?? "None")")
+                print("   - Subtypes: \(business.subtypes ?? [])")
+                print("   - Custom Tags: \(business.customTags ?? [])")
+            }
+            
             completion(business)
         }
     }
@@ -160,7 +210,41 @@ class FirebaseBusinessService: ObservableObject {
         } else {
             return businesses.filter {
                 $0.name.localizedCaseInsensitiveContains(searchText) ||
-                $0.category.localizedCaseInsensitiveContains(searchText)
+                $0.category.localizedCaseInsensitiveContains(searchText) ||
+                ($0.mainCategory?.localizedCaseInsensitiveContains(searchText) ?? false) ||
+                ($0.subtypes?.contains { $0.localizedCaseInsensitiveContains(searchText) } ?? false) ||
+                ($0.customTags?.contains { $0.localizedCaseInsensitiveContains(searchText) } ?? false)
+            }
+        }
+    }
+    
+    // MARK: - Update Business Categories
+    func updateBusinessCategories(
+        businessId: String,
+        mainCategory: String,
+        subtypes: [String],
+        customTags: [String],
+        completion: @escaping (Bool) -> Void
+    ) {
+        guard !businessId.isEmpty else {
+            print("❌ Error: Empty business ID provided")
+            completion(false)
+            return
+        }
+        
+        let updateData: [String: Any] = [
+            "mainCategory": mainCategory,
+            "subtypes": subtypes,
+            "customTags": customTags
+        ]
+        
+        db.collection(businessCollection).document(businessId).updateData(updateData) { error in
+            if let error = error {
+                print("❌ Error updating business categories: \(error.localizedDescription)")
+                completion(false)
+            } else {
+                print("✅ Business categories updated successfully")
+                completion(true)
             }
         }
     }

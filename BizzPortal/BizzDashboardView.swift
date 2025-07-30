@@ -146,8 +146,9 @@ struct CategoryAndTagsSection: View {
     let business: FirebaseBusiness
     @State private var isEditing = false
     @State private var newTag = ""
-    @State private var customTags: [String] = ["organic", "late-night", "wifi", "pet-friendly", "outdoor-seating"]
+    @State private var customTags: [String] = []
     @State private var showingCategoryEditor = false
+    @FocusState private var isTextFieldFocused: Bool
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -189,9 +190,9 @@ struct CategoryAndTagsSection: View {
                 
                 HStack {
                     CategoryBadge(
-                        category: business.category,
-                        icon: iconForCategory(business.category),
-                        color: colorForCategory(business.category)
+                        category: business.mainCategory ?? business.category,
+                        icon: iconForCategory(business.mainCategory ?? business.category),
+                        color: colorForCategory(business.mainCategory ?? business.category)
                     )
                     
                     if isEditing {
@@ -221,20 +222,22 @@ struct CategoryAndTagsSection: View {
                     .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
                 
                 FlowLayout(spacing: 8) {
-                    // Predefined subtypes
-                    ForEach(getSubtypesForCategory(business.category), id: \.self) { subtype in
-                        TagChip(
-                            text: subtype,
-                            color: colorForCategory(business.category),
-                            isRemovable: false
-                        )
+                    // Subtypes from Firebase
+                    if let subtypes = business.subtypes {
+                        ForEach(subtypes, id: \.self) { subtype in
+                            TagChip(
+                                text: subtype,
+                                color: colorForCategory(business.mainCategory ?? business.category),
+                                isRemovable: false
+                            )
+                        }
                     }
                     
-                    // Custom tags
+                    // Custom tags from Firebase
                     ForEach(customTags, id: \.self) { tag in
                         TagChip(
                             text: tag,
-                            color: .purple,
+                            color: .orange,
                             isRemovable: isEditing,
                             onRemove: {
                                 withAnimation {
@@ -248,14 +251,7 @@ struct CategoryAndTagsSection: View {
                     if isEditing {
                         AddTagField(
                             newTag: $newTag,
-                            onAdd: {
-                                if !newTag.isEmpty && !customTags.contains(newTag) {
-                                    withAnimation {
-                                        customTags.append(newTag)
-                                        newTag = ""
-                                    }
-                                }
-                            }
+                            onAdd: addNewTag
                         )
                     }
                 }
@@ -264,7 +260,7 @@ struct CategoryAndTagsSection: View {
             // Quick Stats
             HStack(spacing: 20) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\(customTags.count + getSubtypesForCategory(business.category).count)")
+                    Text("\(business.allTags.count)")
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                     Text("Total Tags")
@@ -278,7 +274,7 @@ struct CategoryAndTagsSection: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(customTags.count)")
                         .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundColor(.purple)
+                        .foregroundColor(.orange)
                     Text("Custom Tags")
                         .font(.caption)
                         .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
@@ -319,6 +315,10 @@ struct CategoryAndTagsSection: View {
             // Category editor modal would go here
             Text("Category Editor - Coming Soon")
         }
+        .onAppear {
+            // Initialize custom tags from business data
+            customTags = business.customTags ?? []
+        }
     }
     
     private func iconForCategory(_ category: String) -> String {
@@ -330,6 +330,8 @@ struct CategoryAndTagsSection: View {
         case "beauty": return "sparkles"
         case "technology & innovation": return "cpu"
         case "business & professional": return "briefcase.fill"
+        case "medicine & healthcare": return "cross.case.fill"
+        case "entertainment & leisure": return "gamecontroller.fill"
         default: return "building.2"
         }
     }
@@ -343,28 +345,39 @@ struct CategoryAndTagsSection: View {
         case "beauty": return .purple
         case "technology & innovation": return .blue
         case "business & professional": return .indigo
+        case "medicine & healthcare": return .red
+        case "entertainment & leisure": return .purple
         default: return .gray
         }
     }
     
-    private func getSubtypesForCategory(_ category: String) -> [String] {
-        // This would ideally come from the saved business data
-        switch category.lowercased() {
-        case "restaurant", "food & dining":
-            return ["Italian", "Casual Dining"]
-        case "cafe":
-            return ["Coffee Shop", "Bakery"]
-        case "retail", "retail & shopping":
-            return ["Clothing", "Accessories"]
-        default:
-            return ["General"]
+    private func addNewTag() {
+        let trimmedTag = newTag.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedTag.isEmpty && !customTags.contains(trimmedTag) {
+            withAnimation {
+                customTags.append(trimmedTag)
+                newTag = ""
+            }
         }
     }
     
     private func saveTags() {
-        // Here you would save the tags to Firebase
-        print("Saving tags: \(customTags)")
-        isEditing = false
+        // Update Firebase with new tags
+        guard let businessId = business.id else { return }
+        
+        FirebaseBusinessService.shared.updateBusinessCategories(
+            businessId: businessId,
+            mainCategory: business.mainCategory ?? business.category,
+            subtypes: business.subtypes ?? [],
+            customTags: customTags
+        ) { success in
+            if success {
+                print("✅ Tags updated successfully")
+                isEditing = false
+            } else {
+                print("❌ Failed to update tags")
+            }
+        }
     }
 }
 
@@ -447,21 +460,18 @@ struct AddTagField: View {
             Button(action: onAdd) {
                 Image(systemName: "plus.circle.fill")
                     .font(.system(size: 16))
-                    .foregroundColor(.purple)
+                    .foregroundColor(.orange)
             }
             .disabled(newTag.isEmpty)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(Color.purple.opacity(0.05))
+        .background(Color.orange.opacity(0.05))
         .overlay(
             RoundedRectangle(cornerRadius: 15)
-                .stroke(Color.purple.opacity(0.3), lineWidth: 1)
+                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
         )
         .cornerRadius(15)
-        .onAppear {
-            isFocused = true
-        }
     }
 }
 
