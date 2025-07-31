@@ -22,23 +22,31 @@ struct CreateOfferView: View {
             )
             .ignoresSafeArea()
             
-            CreateOfferContent(
-                business: business,
-                offerData: $offerData,
-                navigateToPreview: $navigateToPreview
-            )
+            ScrollView {
+                VStack(spacing: 30) {
+                    CreateOfferHeader()
+                        .padding(.top, 20)
+                    
+                    OfferFormSection(offerData: $offerData)
+                    
+                    PreviewButton(
+                        isEnabled: offerData.isValid,
+                        action: { navigateToPreview = true }
+                    )
+                }
+            }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(false) // Show default back button
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text("Create Offer")
                     .font(.headline)
-                    .foregroundColor(.primary) // Use primary color instead of white
+                    .foregroundColor(.primary)
             }
         }
         .navigationDestination(isPresented: $navigateToPreview) {
             OfferPreviewView(business: business, offerData: offerData)
+                .navigationBarBackButtonHidden(false)
         }
     }
 }
@@ -105,29 +113,7 @@ enum OfferPlatform: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Create Offer Content
-struct CreateOfferContent: View {
-    let business: FirebaseBusiness
-    @Binding var offerData: OfferData
-    @Binding var navigateToPreview: Bool
-    
-    var body: some View {
-        ScrollView {
-            VStack(spacing: 30) {
-                CreateOfferHeader()
-                    .padding(.top, 20)
-                
-                OfferFormSection(offerData: $offerData)
-                
-                PreviewButton(
-                    isEnabled: offerData.isValid,
-                    action: { navigateToPreview = true }
-                )
-            }
-        }
-    }
-}
-
+// MARK: - Create Offer Header
 struct CreateOfferHeader: View {
     var body: some View {
         VStack(spacing: 16) {
@@ -168,6 +154,7 @@ struct CreateOfferHeader: View {
     }
 }
 
+// MARK: - Offer Form Section
 struct OfferFormSection: View {
     @Binding var offerData: OfferData
     
@@ -183,6 +170,7 @@ struct OfferFormSection: View {
     }
 }
 
+// MARK: - Offer Description Field
 struct OfferDescriptionField: View {
     @Binding var description: String
     
@@ -209,6 +197,7 @@ struct OfferDescriptionField: View {
     }
 }
 
+// MARK: - Platform Selection Section
 struct PlatformSelectionSection: View {
     @Binding var selectedPlatforms: Set<OfferPlatform>
     
@@ -237,6 +226,7 @@ struct PlatformSelectionSection: View {
     }
 }
 
+// MARK: - Platform Toggle
 struct PlatformToggle: View {
     let platform: OfferPlatform
     let isSelected: Bool
@@ -327,6 +317,7 @@ struct QuantitySelectionSection: View {
     }
 }
 
+// MARK: - Date Selection Section
 struct DateSelectionSection: View {
     @Binding var date: Date?
     @State private var showDatePicker = false
@@ -386,6 +377,7 @@ struct DateSelectionSection: View {
     }
 }
 
+// MARK: - Time Selection Section
 struct TimeSelectionSection: View {
     @Binding var time: Date?
     @State private var showTimePicker = false
@@ -444,6 +436,7 @@ struct TimeSelectionSection: View {
     }
 }
 
+// MARK: - Preview Button
 struct PreviewButton: View {
     let isEnabled: Bool
     let action: () -> Void
