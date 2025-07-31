@@ -343,8 +343,8 @@ struct BizzCategoryPreview: View {
                         .foregroundColor(.purple)
                 }
                 
-                // All tags
-                let allTags = categoryData.subtypes + categoryData.customTags
+                // All tags (subtypes now includes custom tags)
+                let allTags = categoryData.subtypes + categoryData.customTags  // Merge for display
                 if !allTags.isEmpty {
                     Text("Tags:")
                         .font(.caption)
@@ -357,15 +357,8 @@ struct BizzCategoryPreview: View {
                                     .font(.caption)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 6)
-                                    .background(
-                                        categoryData.customTags.contains(tag) ?
-                                        Color.orange.opacity(0.1) :
-                                        Color.purple.opacity(0.1)
-                                    )
-                                    .foregroundColor(
-                                        categoryData.customTags.contains(tag) ?
-                                        .orange : .purple
-                                    )
+                                    .background(Color.purple.opacity(0.1))
+                                    .foregroundColor(.purple)
                                     .cornerRadius(15)
                             }
                         }

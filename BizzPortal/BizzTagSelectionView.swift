@@ -9,7 +9,6 @@ struct BizzTagSelectionView: View {
     
     @State private var selectedMainCategory: MainCategory?
     @State private var selectedSubtypes: Set<String> = []
-    @State private var customTags: [String] = []
     @State private var navigateToPreview = false
     @Environment(\.dismiss) private var dismiss
     
@@ -98,13 +97,12 @@ struct BizzTagSelectionView: View {
                         if let category = selectedMainCategory {
                             BizzSubtypesSection(
                                 category: category,
-                                selectedSubtypes: $selectedSubtypes,
-                                customTags: customTags
+                                selectedSubtypes: $selectedSubtypes
                             )
                         }
                         
                         // Custom Tags Section
-                        BizzCustomTagsSection(customTags: $customTags)
+                        BizzCustomTagsSection(selectedSubtypes: $selectedSubtypes)
                         
                         // Continue Button
                         BizzContinueButton(
@@ -126,14 +124,17 @@ struct BizzTagSelectionView: View {
             }
         }
         .navigationDestination(isPresented: $navigateToPreview) {
+            let allSubtypes = Array(selectedSubtypes)
+            let _ = print("🚀 Navigating to preview with subtypes: \(allSubtypes)")
+            
             BizzPreviewView(
                 businessName: businessName,
                 address: address,
                 placeID: placeID,
                 categoryData: CategoryData(
                     mainCategory: selectedMainCategory?.rawValue ?? "",
-                    subtypes: Array(selectedSubtypes.filter { !customTags.contains($0) }),
-                    customTags: customTags
+                    subtypes: allSubtypes,
+                    customTags: []  // Empty since we're merging into subtypes
                 )
             )
         }
@@ -317,7 +318,6 @@ struct BizzMainCategoryCard: View {
 struct BizzSubtypesSection: View {
     let category: BizzTagSelectionView.MainCategory
     @Binding var selectedSubtypes: Set<String>
-    let customTags: [String]
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -349,19 +349,15 @@ struct BizzSubtypesSection: View {
                     )
                 }
                 
-                // Custom tags
-                ForEach(customTags, id: \.self) { tag in
+                // Custom tags (now part of selectedSubtypes)
+                ForEach(Array(selectedSubtypes).filter { !category.subtypes.contains($0) }, id: \.self) { tag in
                     BizzSubtypeChip(
                         text: tag,
-                        isSelected: selectedSubtypes.contains(tag),
+                        isSelected: true,
                         color: .orange,
                         isCustom: true,
                         action: {
-                            if selectedSubtypes.contains(tag) {
-                                selectedSubtypes.remove(tag)
-                            } else {
-                                selectedSubtypes.insert(tag)
-                            }
+                            selectedSubtypes.remove(tag)
                         }
                     )
                 }
@@ -421,7 +417,7 @@ struct BizzSubtypeChip: View {
 
 // MARK: - Custom Tags Section
 struct BizzCustomTagsSection: View {
-    @Binding var customTags: [String]
+    @Binding var selectedSubtypes: Set<String>
     @State private var newTag = ""
     @FocusState private var isTextFieldFocused: Bool
     
@@ -472,9 +468,9 @@ struct BizzCustomTagsSection: View {
     
     private func addTag() {
         let trimmedTag = newTag.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedTag.isEmpty && !customTags.contains(trimmedTag) {
+        if !trimmedTag.isEmpty && !selectedSubtypes.contains(trimmedTag) {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                customTags.append(trimmedTag)
+                selectedSubtypes.insert(trimmedTag)
                 newTag = ""
             }
         }

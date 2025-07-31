@@ -70,17 +70,11 @@ struct FirebaseBusiness: Codable, Identifiable, Equatable {
     
     // New computed properties for tags
     var allTags: [String] {
-        var tags: [String] = []
-        if let subtypes = subtypes {
-            tags.append(contentsOf: subtypes)
-        }
-        if let customTags = customTags {
-            tags.append(contentsOf: customTags)
-        }
-        return tags
+        // Since custom tags are now merged into subtypes, just return subtypes
+        return subtypes ?? []
     }
     
     var hasCategories: Bool {
-        return mainCategory != nil || !(subtypes?.isEmpty ?? true) || !(customTags?.isEmpty ?? true)
+        return mainCategory != nil || !(subtypes?.isEmpty ?? true)
     }
 }

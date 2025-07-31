@@ -87,13 +87,14 @@ class FirebaseBusinessService: ObservableObject {
         // Add category data if provided
         if let categoryData = categoryData {
             businessData["mainCategory"] = categoryData.mainCategory
-            businessData["subtypes"] = categoryData.subtypes
-            businessData["customTags"] = categoryData.customTags
+            // Merge custom tags into subtypes
+            let allSubtypes = categoryData.subtypes + categoryData.customTags
+            businessData["subtypes"] = allSubtypes
+            businessData["customTags"] = []  // Keep empty for backward compatibility
             
             print("📂 Adding category data:")
             print("   - Main Category: \(categoryData.mainCategory)")
-            print("   - Subtypes: \(categoryData.subtypes)")
-            print("   - Custom Tags: \(categoryData.customTags)")
+            print("   - All Subtypes: \(allSubtypes)")
         }
         
         // Use addDocument which returns the document reference
@@ -195,8 +196,7 @@ class FirebaseBusinessService: ObservableObject {
             if let business = business {
                 print("✅ Retrieved business: \(business.name)")
                 print("   - Main Category: \(business.mainCategory ?? "None")")
-                print("   - Subtypes: \(business.subtypes ?? [])")
-                print("   - Custom Tags: \(business.customTags ?? [])")
+                print("   - All Subtypes: \(business.subtypes ?? [])")
             }
             
             completion(business)
@@ -212,8 +212,7 @@ class FirebaseBusinessService: ObservableObject {
                 $0.name.localizedCaseInsensitiveContains(searchText) ||
                 $0.category.localizedCaseInsensitiveContains(searchText) ||
                 ($0.mainCategory?.localizedCaseInsensitiveContains(searchText) ?? false) ||
-                ($0.subtypes?.contains { $0.localizedCaseInsensitiveContains(searchText) } ?? false) ||
-                ($0.customTags?.contains { $0.localizedCaseInsensitiveContains(searchText) } ?? false)
+                ($0.subtypes?.contains { $0.localizedCaseInsensitiveContains(searchText) } ?? false)
             }
         }
     }
@@ -232,10 +231,13 @@ class FirebaseBusinessService: ObservableObject {
             return
         }
         
+        // Merge custom tags into subtypes for storage
+        let allSubtypes = subtypes  // Since we're already merging in the UI, subtypes contains everything
+        
         let updateData: [String: Any] = [
             "mainCategory": mainCategory,
-            "subtypes": subtypes,
-            "customTags": customTags
+            "subtypes": allSubtypes,
+            "customTags": []  // Keep empty for backward compatibility
         ]
         
         db.collection(businessCollection).document(businessId).updateData(updateData) { error in
@@ -244,8 +246,10 @@ class FirebaseBusinessService: ObservableObject {
                 completion(false)
             } else {
                 print("✅ Business categories updated successfully")
+                print("   - Main Category: \(mainCategory)")
+                print("   - All Subtypes: \(allSubtypes)")
                 completion(true)
             }
         }
     }
-}
+}   

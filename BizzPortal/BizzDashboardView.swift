@@ -11,6 +11,8 @@ struct BusinessDashboardView: View {
     @State private var mapRegion = MKCoordinateRegion()
     @State private var vibesDropdownOpen = false
     @State private var selectedTimeframe = "This Week"
+    @State private var refreshBusiness = false
+    @EnvironmentObject var navigationState: BizzNavigationState
     
     var body: some View {
         ZStack {
@@ -65,8 +67,19 @@ struct BusinessDashboardView: View {
                     AnalyticsGridView(business: business, selectedTimeframe: $selectedTimeframe)
                     
                     // Category & Tags Section
-                    CategoryAndTagsSection(business: business)
-                        .padding(.horizontal)
+                    CategoryAndTagsSection(
+                        business: navigationState.userBusiness ?? business,
+                        onTagsUpdated: { updatedBusinessId in
+                            // Reload the business after tags are updated
+                            FirebaseBusinessService.shared.getBusinessById(businessId: updatedBusinessId) { updatedBusiness in
+                                if let updatedBusiness = updatedBusiness {
+                                    navigationState.userBusiness = updatedBusiness
+                                    print("✅ Business refreshed with updated tags")
+                                }
+                            }
+                        }
+                    )
+                    .padding(.horizontal)
                     
                     // Reviews & Vibes Section
                     HStack(spacing: 16) {
@@ -87,7 +100,9 @@ struct BusinessDashboardView: View {
             CreateOfferView(business: business)
         }
         .onAppear {
-            loadBusinessOffers()
+            if businessOffers.isEmpty {
+                loadBusinessOffers()
+            }
             setupMapRegion()
             print("📊 Dashboard loading for business: \(business.name) with ID: \(business.id ?? "no-id")")
         }
@@ -144,9 +159,10 @@ struct BusinessDashboardView: View {
 // MARK: - Category & Tags Section
 struct CategoryAndTagsSection: View {
     let business: FirebaseBusiness
+    var onTagsUpdated: ((String) -> Void)?
     @State private var isEditing = false
     @State private var newTag = ""
-    @State private var customTags: [String] = []
+    @State private var editableSubtypes: [String] = []
     @State private var showingCategoryEditor = false
     @FocusState private var isTextFieldFocused: Bool
     
@@ -222,26 +238,15 @@ struct CategoryAndTagsSection: View {
                     .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
                 
                 FlowLayout(spacing: 8) {
-                    // Subtypes from Firebase
-                    if let subtypes = business.subtypes {
-                        ForEach(subtypes, id: \.self) { subtype in
-                            TagChip(
-                                text: subtype,
-                                color: colorForCategory(business.mainCategory ?? business.category),
-                                isRemovable: false
-                            )
-                        }
-                    }
-                    
-                    // Custom tags from Firebase
-                    ForEach(customTags, id: \.self) { tag in
+                    // All subtypes (including custom tags)
+                    ForEach(editableSubtypes, id: \.self) { subtype in
                         TagChip(
-                            text: tag,
-                            color: .orange,
-                            isRemovable: isEditing,
+                            text: subtype,
+                            color: isCustomTag(subtype) ? .orange : colorForCategory(business.mainCategory ?? business.category),
+                            isRemovable: isEditing && isCustomTag(subtype),
                             onRemove: {
                                 withAnimation {
-                                    customTags.removeAll { $0 == tag }
+                                    editableSubtypes.removeAll { $0 == subtype }
                                 }
                             }
                         )
@@ -260,7 +265,7 @@ struct CategoryAndTagsSection: View {
             // Quick Stats
             HStack(spacing: 20) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\(business.allTags.count)")
+                    Text("\(editableSubtypes.count)")
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
                     Text("Total Tags")
@@ -272,7 +277,7 @@ struct CategoryAndTagsSection: View {
                     .frame(height: 30)
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\(customTags.count)")
+                    Text("\(customTagCount)")
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundColor(.orange)
                     Text("Custom Tags")
@@ -316,8 +321,40 @@ struct CategoryAndTagsSection: View {
             Text("Category Editor - Coming Soon")
         }
         .onAppear {
-            // Initialize custom tags from business data
-            customTags = business.customTags ?? []
+            // Initialize editable subtypes from business data
+            editableSubtypes = business.subtypes ?? []
+        }
+    }
+    
+    private var customTagCount: Int {
+        let categorySubtypes = getCategorySubtypes(for: business.mainCategory ?? business.category)
+        return editableSubtypes.filter { !categorySubtypes.contains($0) }.count
+    }
+    
+    private func isCustomTag(_ tag: String) -> Bool {
+        let categorySubtypes = getCategorySubtypes(for: business.mainCategory ?? business.category)
+        return !categorySubtypes.contains(tag)
+    }
+    
+    private func getCategorySubtypes(for category: String) -> [String] {
+        // Define the standard subtypes for each category
+        switch category.lowercased() {
+        case "restaurant", "food & dining":
+            return ["Restaurant", "Cafe", "Bakery", "Bar & Grill", "Fast Food", "Fine Dining", "Food Truck", "Catering", "Juice Bar", "Ice Cream Shop"]
+        case "retail", "retail & shopping":
+            return ["Clothing", "Shoes", "Accessories", "Home Goods", "Electronics", "Books", "Gifts", "Beauty Products", "Sporting Goods"]
+        case "fitness", "health & wellness":
+            return ["Gym & Fitness", "Yoga Studio", "Spa & Wellness", "Mental Health", "Nutrition", "Personal Training", "Meditation Center", "Health Food Store"]
+        case "business & professional":
+            return ["Consulting", "Finance", "Real Estate", "Legal Services", "Marketing Agency", "Accounting", "Insurance", "Co-working Space"]
+        case "technology & innovation":
+            return ["Software Development", "IT Services", "Electronics Store", "Computer Repair", "Gaming", "Web Design", "App Development", "Tech Support"]
+        case "medicine & healthcare":
+            return ["Clinic", "Pharmacy", "Dental", "Optometry", "Physical Therapy", "Veterinary", "Medical Supplies", "Alternative Medicine"]
+        case "entertainment & leisure":
+            return ["Movie Theater", "Gaming Lounge", "Bowling", "Arcade", "Live Music Venue", "Comedy Club", "Art Gallery", "Museum", "Escape Room"]
+        default:
+            return []
         }
     }
     
@@ -353,9 +390,9 @@ struct CategoryAndTagsSection: View {
     
     private func addNewTag() {
         let trimmedTag = newTag.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedTag.isEmpty && !customTags.contains(trimmedTag) {
+        if !trimmedTag.isEmpty && !editableSubtypes.contains(trimmedTag) {
             withAnimation {
-                customTags.append(trimmedTag)
+                editableSubtypes.append(trimmedTag)
                 newTag = ""
             }
         }
@@ -368,12 +405,14 @@ struct CategoryAndTagsSection: View {
         FirebaseBusinessService.shared.updateBusinessCategories(
             businessId: businessId,
             mainCategory: business.mainCategory ?? business.category,
-            subtypes: business.subtypes ?? [],
-            customTags: customTags
+            subtypes: editableSubtypes,
+            customTags: [] // Empty since we're storing everything in subtypes
         ) { success in
             if success {
                 print("✅ Tags updated successfully")
                 isEditing = false
+                // Notify parent to refresh the business
+                onTagsUpdated?(businessId)
             } else {
                 print("❌ Failed to update tags")
             }
