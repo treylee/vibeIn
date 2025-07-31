@@ -9,36 +9,36 @@ struct CreateOfferView: View {
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        NavigationStack {
-            ZStack {
-                CreateOfferBackground()
-                CreateOfferContent(
-                    business: business,
-                    offerData: $offerData,
-                    navigateToPreview: $navigateToPreview
-                )
+        ZStack {
+            // Updated background to match portal view style
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.blue.opacity(0.05),
+                    Color.purple.opacity(0.05),
+                    Color.pink.opacity(0.03)
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            
+            CreateOfferContent(
+                business: business,
+                offerData: $offerData,
+                navigateToPreview: $navigateToPreview
+            )
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(false) // Show default back button
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("Create Offer")
+                    .font(.headline)
+                    .foregroundColor(.primary) // Use primary color instead of white
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .navigationBarBackButtonHidden(false)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { dismiss() }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
-                            Text("Back")
-                        }
-                        .foregroundColor(.white)
-                    }
-                }
-                ToolbarItem(placement: .principal) {
-                    Text("Create Offer")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                }
-            }
-            .navigationDestination(isPresented: $navigateToPreview) {
-                OfferPreviewView(business: business, offerData: offerData)
-            }
+        }
+        .navigationDestination(isPresented: $navigateToPreview) {
+            OfferPreviewView(business: business, offerData: offerData)
         }
     }
 }
@@ -105,22 +105,7 @@ enum OfferPlatform: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Create Offer Components
-struct CreateOfferBackground: View {
-    var body: some View {
-        LinearGradient(
-            gradient: Gradient(colors: [
-                Color.purple.opacity(0.3),
-                Color.pink.opacity(0.4),
-                Color.orange.opacity(0.3)
-            ]),
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-        .ignoresSafeArea()
-    }
-}
-
+// MARK: - Create Offer Content
 struct CreateOfferContent: View {
     let business: FirebaseBusiness
     @Binding var offerData: OfferData
@@ -130,7 +115,10 @@ struct CreateOfferContent: View {
         ScrollView {
             VStack(spacing: 30) {
                 CreateOfferHeader()
+                    .padding(.top, 20)
+                
                 OfferFormSection(offerData: $offerData)
+                
                 PreviewButton(
                     isEnabled: offerData.isValid,
                     action: { navigateToPreview = true }
@@ -143,23 +131,40 @@ struct CreateOfferContent: View {
 struct CreateOfferHeader: View {
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: "gift.fill")
-                .font(.system(size: 60))
-                .foregroundColor(.white)
-                .shadow(radius: 8)
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.purple.opacity(0.2), Color.pink.opacity(0.2)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 80, height: 80)
+                    .blur(radius: 20)
+                
+                Image(systemName: "gift.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.purple, .pink],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
             
             Text("Create Your Offer")
                 .font(.title)
                 .fontWeight(.bold)
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
                 .multilineTextAlignment(.center)
             
             Text("Attract influencers with a special offer")
                 .font(.subheadline)
-                .foregroundColor(.white.opacity(0.8))
+                .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
         }
-        .padding(.top, 20)
     }
 }
 
@@ -185,21 +190,21 @@ struct OfferDescriptionField: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("What's your offer?", systemImage: "gift")
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
             
             TextEditor(text: $description)
                 .frame(height: 100)
                 .padding(8)
-                .background(Color.white.opacity(0.9))
+                .background(Color.white)
                 .cornerRadius(12)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                 )
             
             Text("e.g., Free appetizer with any entree purchase")
                 .font(.caption)
-                .foregroundColor(.white.opacity(0.7))
+                .foregroundColor(.secondary)
         }
     }
 }
@@ -211,7 +216,7 @@ struct PlatformSelectionSection: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Where should they leave reviews?", systemImage: "app.badge")
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
             
             VStack(spacing: 8) {
                 ForEach(OfferPlatform.allCases) { platform in
@@ -245,7 +250,7 @@ struct PlatformToggle: View {
                     .frame(width: 30)
                 
                 Text(platform.rawValue)
-                    .foregroundColor(.black)
+                    .foregroundColor(.primary)
                 
                 Spacer()
                 
@@ -255,10 +260,10 @@ struct PlatformToggle: View {
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white.opacity(0.9))
+                    .fill(Color.white)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(isSelected ? platform.color.opacity(0.5) : Color.gray.opacity(0.3), lineWidth: 2)
+                            .stroke(isSelected ? platform.color.opacity(0.5) : Color.gray.opacity(0.2), lineWidth: 2)
                     )
             )
         }
@@ -274,11 +279,11 @@ struct QuantitySelectionSection: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Maximum participants", systemImage: "person.3.fill")
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
             
             Text("How many influencers can claim this offer?")
                 .font(.caption)
-                .foregroundColor(.white.opacity(0.8))
+                .foregroundColor(.secondary)
             
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 ForEach(quantities, id: \.self) { quantity in
@@ -287,20 +292,20 @@ struct QuantitySelectionSection: View {
                     }) {
                         Text("\(quantity)")
                             .font(.headline)
-                            .foregroundColor(maxParticipants == quantity ? .white : .black)
+                            .foregroundColor(maxParticipants == quantity ? .white : .primary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
                             .background(
                                 RoundedRectangle(cornerRadius: 8)
                                     .fill(maxParticipants == quantity ?
                                           Color.purple :
-                                          Color.white.opacity(0.9))
+                                          Color.white)
                             )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8)
                                     .stroke(maxParticipants == quantity ?
                                            Color.purple :
-                                           Color.gray.opacity(0.3), lineWidth: 2)
+                                           Color.gray.opacity(0.2), lineWidth: 2)
                             )
                     }
                 }
@@ -310,7 +315,7 @@ struct QuantitySelectionSection: View {
             HStack {
                 Text("Custom:")
                     .font(.subheadline)
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
                 
                 TextField("Enter amount", value: $maxParticipants, format: .number)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -336,12 +341,12 @@ struct DateSelectionSection: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Valid until date *", systemImage: "calendar")
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
             
             Button(action: { showDatePicker.toggle() }) {
                 HStack {
                     Text(date != nil ? dateFormatter.string(from: date!) : "Select date")
-                        .foregroundColor(date != nil ? .black : .gray)
+                        .foregroundColor(date != nil ? .primary : .gray)
                     Spacer()
                     Image(systemName: "calendar.badge.plus")
                         .foregroundColor(date != nil ? .purple : .gray)
@@ -349,7 +354,7 @@ struct DateSelectionSection: View {
                 .padding()
                 .background(
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.white.opacity(0.9))
+                        .fill(Color.white)
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
                                 .stroke(date != nil ? Color.purple.opacity(0.5) : Color.red.opacity(0.5), lineWidth: 2)
@@ -374,7 +379,7 @@ struct DateSelectionSection: View {
                     displayedComponents: .date
                 )
                 .datePickerStyle(GraphicalDatePickerStyle())
-                .background(Color.white.opacity(0.9))
+                .background(Color.white)
                 .cornerRadius(12)
             }
         }
@@ -395,12 +400,12 @@ struct TimeSelectionSection: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Valid until time *", systemImage: "clock")
                 .font(.headline)
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
             
             Button(action: { showTimePicker.toggle() }) {
                 HStack {
                     Text(time != nil ? timeFormatter.string(from: time!) : "Select time")
-                        .foregroundColor(time != nil ? .black : .gray)
+                        .foregroundColor(time != nil ? .primary : .gray)
                     Spacer()
                     Image(systemName: "clock.badge.plus")
                         .foregroundColor(time != nil ? .purple : .gray)
@@ -408,7 +413,7 @@ struct TimeSelectionSection: View {
                 .padding()
                 .background(
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.white.opacity(0.9))
+                        .fill(Color.white)
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
                                 .stroke(time != nil ? Color.purple.opacity(0.5) : Color.red.opacity(0.5), lineWidth: 2)
@@ -432,7 +437,7 @@ struct TimeSelectionSection: View {
                     displayedComponents: .hourAndMinute
                 )
                 .datePickerStyle(WheelDatePickerStyle())
-                .background(Color.white.opacity(0.9))
+                .background(Color.white)
                 .cornerRadius(12)
             }
         }
