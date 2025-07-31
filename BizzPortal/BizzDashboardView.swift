@@ -1375,6 +1375,14 @@ struct CategoryEditorModal: View {
                                             category: category,
                                             isSelected: selectedCategory == category,
                                             action: {
+                                                // When changing category, clear all selections and only keep custom tags
+                                                if selectedCategory != category {
+                                                    // Filter to keep only custom tags (not in any category's subtypes)
+                                                    let customTags = Array(selectedSubtypes).filter { tag in
+                                                        !isTagInAnyPredefinedCategory(tag)
+                                                    }
+                                                    selectedSubtypes = Set(customTags)
+                                                }
                                                 selectedCategory = category
                                             }
                                         )
@@ -1431,10 +1439,30 @@ struct CategoryEditorModal: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .onAppear {
-            // Pre-select current category and subtypes
+            // Pre-select current category
             selectedCategory = MainCategory.allCases.first { $0.rawValue == currentCategory }
-            selectedSubtypes = Set(currentSubtypes)
+            
+            // Only load subtypes that belong to current category
+            if let category = selectedCategory {
+                // Only include tags that are part of the current category's predefined subtypes
+                selectedSubtypes = Set(currentSubtypes.filter { tag in
+                    category.subtypes.contains(tag)
+                })
+            } else {
+                // If no category selected, start with empty set
+                selectedSubtypes = []
+            }
         }
+    }
+    
+    // Helper function to check if a tag belongs to any predefined category
+    private func isTagInAnyPredefinedCategory(_ tag: String) -> Bool {
+        for category in MainCategory.allCases {
+            if category.subtypes.contains(tag) {
+                return true
+            }
+        }
+        return false
     }
 }
 
@@ -1502,25 +1530,20 @@ struct SubtypesSection: View {
     let category: CategoryEditorModal.MainCategory
     @Binding var selectedSubtypes: Set<String>
     
-    var customTags: [String] {
-        // Get tags that are not in the predefined category subtypes
-        return Array(selectedSubtypes).filter { !category.subtypes.contains($0) }.sorted()
-    }
-    
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Subtypes & Tags")
+                Text("Subtypes")
                     .font(.headline)
                 
-                Text("(\(selectedSubtypes.count) selected)")
+                Text("(\(selectedSubtypes.filter { category.subtypes.contains($0) }.count) selected)")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
             .padding(.horizontal)
             
             FlowLayout(spacing: 12) {
-                // Category subtypes
+                // Only show category subtypes - NO custom tags here
                 ForEach(category.subtypes, id: \.self) { subtype in
                     SubtypeChip(
                         text: subtype,
@@ -1533,19 +1556,6 @@ struct SubtypesSection: View {
                             } else {
                                 selectedSubtypes.insert(subtype)
                             }
-                        }
-                    )
-                }
-                
-                // Custom tags
-                ForEach(customTags, id: \.self) { tag in
-                    SubtypeChip(
-                        text: tag,
-                        isSelected: true,
-                        color: .orange,
-                        isCustom: true,
-                        action: {
-                            selectedSubtypes.remove(tag)
                         }
                     )
                 }
@@ -1609,6 +1619,22 @@ struct CustomTagsSection: View {
     @State private var newTag = ""
     @FocusState private var isTextFieldFocused: Bool
     
+    // Get all custom tags (not in any predefined category)
+    var customTags: [String] {
+        return Array(selectedSubtypes).filter { tag in
+            !isTagInAnyPredefinedCategory(tag)
+        }.sorted()
+    }
+    
+    private func isTagInAnyPredefinedCategory(_ tag: String) -> Bool {
+        for category in CategoryEditorModal.MainCategory.allCases {
+            if category.subtypes.contains(tag) {
+                return true
+            }
+        }
+        return false
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -1616,11 +1642,45 @@ struct CustomTagsSection: View {
                     .foregroundColor(.orange)
                 Text("Custom Tags")
                     .font(.headline)
+                
+                if !customTags.isEmpty {
+                    Text("(\(customTags.count))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
             
             Text("Add your own custom tags")
                 .font(.caption)
                 .foregroundColor(.secondary)
+            
+            // Show existing custom tags
+            if !customTags.isEmpty {
+                FlowLayout(spacing: 8) {
+                    ForEach(customTags, id: \.self) { tag in
+                        HStack(spacing: 6) {
+                            Text(tag)
+                                .font(.system(size: 12, weight: .medium))
+                            Button(action: {
+                                selectedSubtypes.remove(tag)
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.orange.opacity(0.6))
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.orange.opacity(0.1))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 15)
+                                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                        )
+                        .cornerRadius(15)
+                    }
+                }
+                .padding(.bottom, 8)
+            }
             
             HStack(spacing: 8) {
                 TextField("e.g., organic, late-night", text: $newTag)
@@ -1664,3 +1724,5 @@ struct CustomTagsSection: View {
         }
     }
 }
+
+// FlowLayout is already defined elsewhere in the project
