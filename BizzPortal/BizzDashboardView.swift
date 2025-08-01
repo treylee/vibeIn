@@ -5,7 +5,7 @@ import MapKit
 
 struct BusinessDashboardView: View {
     let business: FirebaseBusiness
-    @State private var navigateToCreateOffer = false
+    @State private var showCreateOffer = false
     @State private var businessOffers: [FirebaseOffer] = []
     @State private var loadingOffers = false
     @State private var mapRegion = MKCoordinateRegion()
@@ -60,7 +60,7 @@ struct BusinessDashboardView: View {
                     ActiveOffersSection(
                         businessOffers: businessOffers,
                         loadingOffers: loadingOffers,
-                        navigateToCreateOffer: $navigateToCreateOffer
+                        showCreateOffer: $showCreateOffer
                     )
                     
                     // Analytics Grid
@@ -96,8 +96,18 @@ struct BusinessDashboardView: View {
             }
         }
         .navigationBarHidden(true)
-        .navigationDestination(isPresented: $navigateToCreateOffer) {
-            CreateOfferView(business: business)
+        .fullScreenCover(isPresented: $showCreateOffer) {
+            NavigationStack {
+                CreateOfferView(business: business)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Cancel") {
+                                showCreateOffer = false
+                            }
+                            .foregroundColor(.purple)
+                        }
+                    }
+            }
         }
         .onAppear {
             if businessOffers.isEmpty {
@@ -110,6 +120,7 @@ struct BusinessDashboardView: View {
             // Reload offers when a new one is created
             print("🔄 Reloading offers after creation")
             loadBusinessOffers()
+            showCreateOffer = false
         }
     }
     
@@ -675,11 +686,11 @@ struct QuickStatCard: View {
     }
 }
 
-// MARK: - Active Offers Section
+// MARK: - Active Offers Section (Updated)
 struct ActiveOffersSection: View {
     let businessOffers: [FirebaseOffer]
     let loadingOffers: Bool
-    @Binding var navigateToCreateOffer: Bool
+    @Binding var showCreateOffer: Bool
     
     private var activeOffers: [FirebaseOffer] {
         businessOffers.filter { $0.isActive && !$0.isExpired }
@@ -705,7 +716,7 @@ struct ActiveOffersSection: View {
                 
                 Spacer()
                 
-                Button(action: { navigateToCreateOffer = true }) {
+                Button(action: { showCreateOffer = true }) {
                     HStack(spacing: 6) {
                         Image(systemName: "plus")
                         Text("New Offer")
@@ -738,7 +749,7 @@ struct ActiveOffersSection: View {
                     Spacer()
                 }
             } else if allOffers.isEmpty {
-                EmptyOffersCard(navigateToCreateOffer: $navigateToCreateOffer)
+                EmptyOffersCard(showCreateOffer: $showCreateOffer)
                     .padding(.horizontal)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -876,9 +887,9 @@ struct OfferCard: View {
     }
 }
 
-// MARK: - Empty Offers Card
+// MARK: - Empty Offers Card (Updated)
 struct EmptyOffersCard: View {
-    @Binding var navigateToCreateOffer: Bool
+    @Binding var showCreateOffer: Bool
     
     var body: some View {
         VStack(spacing: 16) {
@@ -896,7 +907,7 @@ struct EmptyOffersCard: View {
                     .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
             }
             
-            Button(action: { navigateToCreateOffer = true }) {
+            Button(action: { showCreateOffer = true }) {
                 Text("Create First Offer")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))

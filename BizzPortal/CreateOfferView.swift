@@ -7,6 +7,7 @@ struct CreateOfferView: View {
     @State private var offerData = OfferData()
     @State private var navigateToPreview = false
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var navigationState: BizzNavigationState
     
     var body: some View {
         ZStack {

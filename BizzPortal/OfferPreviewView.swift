@@ -11,9 +11,9 @@ struct OfferPreviewView: View {
     @State private var showSuccessAlert = false
     @State private var showErrorAlert = false
     @State private var alertMessage = ""
-    @State private var navigateToPortal = false
-    @State private var createdBusiness: FirebaseBusiness?
+    @State private var shouldDismissToRoot = false
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var navigationState: BizzNavigationState
     
     var body: some View {
         ZStack {
@@ -35,14 +35,10 @@ struct OfferPreviewView: View {
                     .foregroundColor(.white)
             }
         }
-        .navigationDestination(isPresented: $navigateToPortal) {
-            // Navigate to the main app with bottom navigation
-            BizzNavigationContainer()
-                .navigationBarBackButtonHidden(true)
-        }
         .alert("Offer Created! 🎉", isPresented: $showSuccessAlert) {
             Button("Back to Dashboard") {
-                navigateToPortal = true
+                // Navigate back to dashboard by dismissing to root
+                shouldDismissToRoot = true
             }
         } message: {
             Text("Your offer is now live and visible to influencers!")
@@ -51,6 +47,15 @@ struct OfferPreviewView: View {
             Button("OK") { }
         } message: {
             Text(alertMessage)
+        }
+        .onChange(of: shouldDismissToRoot) { _, newValue in
+            if newValue {
+                // Dismiss multiple times to get back to dashboard
+                dismiss()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    dismiss()
+                }
+            }
         }
     }
     
