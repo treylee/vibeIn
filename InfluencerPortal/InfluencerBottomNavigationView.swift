@@ -20,7 +20,14 @@ struct InfluencerNavigationContainer: View {
                 .tag(InfluencerTab.discover)
                 .environmentObject(navigationState)
                 
-                // Portal Tab (Home)
+                // Home Tab (NEW)
+                NavigationStack {
+                    InfluencerHomeView()
+                }
+                .tag(InfluencerTab.home)
+                .environmentObject(navigationState)
+                
+                // Portal Tab
                 NavigationStack {
                     InfluencerPortalView()
                 }
@@ -92,7 +99,7 @@ struct InfluencerNavigationContainer: View {
 // MARK: - Navigation State
 class InfluencerNavigationState: ObservableObject {
     @Published var currentInfluencer: FirebaseInfluencer?
-    @Published var selectedTab: InfluencerTab = .portal
+    @Published var selectedTab: InfluencerTab = .home  // Changed default to home
     @Published var shouldPopToRoot = false
     
     func navigateToPortal() {
@@ -109,12 +116,14 @@ class InfluencerNavigationState: ObservableObject {
 // MARK: - Tab Enum
 enum InfluencerTab: String, CaseIterable {
     case discover = "Discover"
+    case home = "Home"  // NEW
     case portal = "Portal"
     case profile = "Profile"
     
     var icon: String {
         switch self {
         case .discover: return "sparkle.magnifyingglass"
+        case .home: return "house.fill"  // NEW
         case .portal: return "star.circle.fill"
         case .profile: return "person.crop.circle.fill"
         }
@@ -123,6 +132,7 @@ enum InfluencerTab: String, CaseIterable {
     var vibeColor: [Color] {
         switch self {
         case .discover: return [Color.orange.opacity(0.8), Color.pink.opacity(0.8)]
+        case .home: return [Color.purple.opacity(0.8), Color.orange.opacity(0.8)]  // NEW
         case .portal: return [Color.purple.opacity(0.8), Color.pink.opacity(0.8)]
         case .profile: return [Color.pink.opacity(0.8), Color.purple.opacity(0.8)]
         }
