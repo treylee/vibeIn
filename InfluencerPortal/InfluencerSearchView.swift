@@ -21,7 +21,7 @@ struct InfluencerSearchView: View {
     @StateObject private var offerService = FirebaseOfferService.shared
     @StateObject private var influencerService = FirebaseInfluencerService.shared
     @EnvironmentObject var navigationState: InfluencerNavigationState
-    
+        
     var filteredOffers: [FirebaseOffer] {
         if searchText.isEmpty {
             return businessOffers
