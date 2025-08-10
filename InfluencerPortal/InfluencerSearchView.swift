@@ -18,6 +18,8 @@ struct InfluencerSearchView: View {
     @State private var events: [VibeEvent] = [] // Placeholder for events
     @State private var isLoading = false
     @State private var selectedOffer: FirebaseOffer?
+    @State private var isSearchFocused = false
+    @State private var showResults = false
     @StateObject private var offerService = FirebaseOfferService.shared
     @StateObject private var influencerService = FirebaseInfluencerService.shared
     @EnvironmentObject var navigationState: InfluencerNavigationState
@@ -57,23 +59,139 @@ struct InfluencerSearchView: View {
             )
             .ignoresSafeArea()
             
-            VStack(spacing: 16) { // Reduced spacing for more compact layout
-                // Header (restored from original)
-                VStack(spacing: 12) { // Reduced spacing
-                    ZStack {
-                        Circle()
-                            .fill(
+            VStack(spacing: 12) { // Reduced spacing
+                // Compact Header - animate when searching
+                VStack(spacing: 8) {
+                    if !isSearchFocused {
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.pink.opacity(0.3), Color.purple.opacity(0.3)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 60, height: 60) // Much smaller
+                                .blur(radius: 15)
+                            
+                            Image(systemName: "sparkle.magnifyingglass")
+                                .font(.system(size: 35, weight: .light)) // Smaller icon
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.pink, .purple],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                        }
+                        .transition(.asymmetric(
+                            insertion: .scale.combined(with: .opacity),
+                            removal: .scale.combined(with: .opacity)
+                        ))
+                    }
+                    
+                    if !isSearchFocused {
+                        Text(searchMode == .businesses ? "Discover Offers" : "Discover Events")
+                            .font(.system(size: 20, weight: .semibold, design: .rounded)) // Smaller
+                            .foregroundStyle(
                                 LinearGradient(
-                                    colors: [Color.pink.opacity(0.3), Color.purple.opacity(0.3)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
+                                    colors: searchMode == .businesses ?
+                                        [.pink, .purple] :
+                                        [.orange, .pink],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
                                 )
                             )
-                            .frame(width: 80, height: 80) // Smaller circle
-                            .blur(radius: 20)
-                        
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .top).combined(with: .opacity),
+                                removal: .move(edge: .top).combined(with: .opacity)
+                            ))
+                            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: searchMode)
+                    }
+                    
+                    if !isSearchFocused {
+                        Text("Find collaboration opportunities")
+                            .font(.system(size: 12, design: .rounded)) // Smaller
+                            .foregroundColor(.gray)
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .top).combined(with: .opacity),
+                                removal: .move(edge: .top).combined(with: .opacity)
+                            ))
+                    }
+                }
+                .padding(.top, isSearchFocused ? 50 : 30) // Move up when searching
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSearchFocused)
+                
+                // Circular Toggle - more compact when searching
+                CircularInfluencerToggle(selectedMode: $searchMode, isCompact: isSearchFocused)
+                    .padding(.horizontal, isSearchFocused ? 50 : 40)
+                    .scaleEffect(isSearchFocused ? 0.9 : 1.0)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSearchFocused)
+                
+                // Search Bar with animation and magnifying glass
+                HStack(spacing: 12) {
+                    VStack(spacing: 0) {
+                        HStack {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundColor(.pink.opacity(0.6))
+                                .rotationEffect(.degrees(isSearchFocused ? 360 : 0))
+                                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isSearchFocused)
+                            
+                            TextField(searchMode == .businesses ? "Search offers..." : "Search events...", text: $searchText)
+                                .foregroundColor(.black)
+                                .onTapGesture {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                        isSearchFocused = true
+                                    }
+                                }
+                                .onChange(of: searchText) { newValue in
+                                    // Animate results appearance when typing
+                                    withAnimation(.easeOut(duration: 0.2)) {
+                                        showResults = !newValue.isEmpty
+                                    }
+                                }
+                            
+                            if !searchText.isEmpty {
+                                Button(action: {
+                                    withAnimation {
+                                        searchText = ""
+                                        showResults = false
+                                    }
+                                }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.gray.opacity(0.6))
+                                }
+                                .transition(.scale.combined(with: .opacity))
+                            }
+                        }
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(Color.white.opacity(isSearchFocused ? 1.0 : 0.9))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(
+                                            LinearGradient(
+                                                colors: isSearchFocused ?
+                                                    [Color.pink.opacity(0.5), Color.purple.opacity(0.5)] :
+                                                    [Color.pink.opacity(0.3), Color.purple.opacity(0.3)],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            ),
+                                            lineWidth: isSearchFocused ? 2 : 1
+                                        )
+                                )
+                        )
+                        .shadow(color: isSearchFocused ? Color.purple.opacity(0.2) : Color.pink.opacity(0.1),
+                                radius: isSearchFocused ? 15 : 10,
+                                y: 5)
+                    }
+                    
+                    // Animated magnifying glass that appears on the right when typing
+                    if !searchText.isEmpty {
                         Image(systemName: "sparkle.magnifyingglass")
-                            .font(.system(size: 50, weight: .light)) // Smaller icon
+                            .font(.system(size: 22))
                             .foregroundStyle(
                                 LinearGradient(
                                     colors: [.pink, .purple],
@@ -81,75 +199,59 @@ struct InfluencerSearchView: View {
                                     endPoint: .bottomTrailing
                                 )
                             )
+                            .rotationEffect(.degrees(15))
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .trailing).combined(with: .opacity).combined(with: .scale),
+                                removal: .move(edge: .trailing).combined(with: .opacity).combined(with: .scale)
+                            ))
+                            .animation(.spring(response: 0.4, dampingFraction: 0.7), value: searchText)
                     }
-                    
-                    Text("Discover Offers")
-                        .font(.system(size: 24, weight: .semibold, design: .rounded)) // Smaller text
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.pink, .purple],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                    
-                    Text("Find collaboration opportunities")
-                        .font(.system(size: 14, design: .rounded)) // Smaller text
-                        .foregroundColor(.gray)
                 }
-                .padding(.top, 40) // Reduced top padding
+                .padding(.horizontal, isSearchFocused ? 20 : 40)
+                .offset(y: isSearchFocused ? -20 : 0) // Move up when searching
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSearchFocused)
                 
-                // Smaller Toggle
-                InfluencerVibeToggle(selectedMode: $searchMode)
-                    .padding(.horizontal, 80) // More horizontal padding for less width
-                    .scaleEffect(0.95) // Slightly larger than before
-                
-                // Search Bar
-                HStack {
-                    Image(systemName: "sparkle.magnifyingglass")
-                        .foregroundColor(.pink.opacity(0.6))
-                    TextField(searchMode == .businesses ? "Search offers..." : "Search events...", text: $searchText)
-                        .foregroundColor(.black)
-                }
-                .padding()
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(Color.white.opacity(0.9))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 20)
-                                .stroke(
-                                    LinearGradient(
-                                        colors: [Color.pink.opacity(0.3), Color.purple.opacity(0.3)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    ),
-                                    lineWidth: 1
-                                )
-                        )
-                )
-                .shadow(color: Color.pink.opacity(0.1), radius: 10, y: 5)
-                .padding(.horizontal, 40)
-                
-                // Results
+                // Results - takes up more space
                 if isLoading {
                     InfluencerVibeLoadingIndicator()
                         .padding(.top, 20)
+                        .transition(.opacity)
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: 12) { // Reduced spacing between items
+                        LazyVStack(spacing: 10) { // Tighter spacing
                             if searchMode == .businesses {
                                 if filteredOffers.isEmpty {
-                                    InfluencerVibeEmptyState(
-                                        icon: "gift.fill",
-                                        title: searchText.isEmpty ? "No offers yet" : "No results found",
-                                        subtitle: searchText.isEmpty ? "New offers will appear here" : "Try a different search"
-                                    )
+                                    if searchText.isEmpty && !isSearchFocused {
+                                        InfluencerVibeEmptyState(
+                                            icon: "gift.fill",
+                                            title: "No offers yet",
+                                            subtitle: "New offers will appear here"
+                                        )
+                                        .transition(.opacity)
+                                    } else if !searchText.isEmpty {
+                                        InfluencerVibeEmptyState(
+                                            icon: "magnifyingglass",
+                                            title: "No results found",
+                                            subtitle: "Try a different search"
+                                        )
+                                        .scaleEffect(0.9)
+                                        .transition(.scale.combined(with: .opacity))
+                                    }
                                 } else {
-                                    ForEach(filteredOffers) { offer in
+                                    ForEach(Array(filteredOffers.enumerated()), id: \.element.id) { index, offer in
                                         NavigationLink(destination: InfluencerRestaurantDetailView(offer: offer)
                                             .environmentObject(navigationState)
                                         ) {
                                             InfluencerOfferCardView(offer: offer)
+                                                .transition(.asymmetric(
+                                                    insertion: .move(edge: .trailing).combined(with: .opacity),
+                                                    removal: .move(edge: .leading).combined(with: .opacity)
+                                                ))
+                                                .animation(
+                                                    .spring(response: 0.3, dampingFraction: 0.7)
+                                                    .delay(Double(index) * 0.05),
+                                                    value: searchText
+                                                )
                                         }
                                     }
                                 }
@@ -160,28 +262,44 @@ struct InfluencerSearchView: View {
                                         title: searchText.isEmpty ? "No events yet" : "No results found",
                                         subtitle: searchText.isEmpty ? "Upcoming events will appear here" : "Try a different search"
                                     )
+                                    .transition(.opacity)
                                 } else {
-                                    ForEach(filteredEvents) { event in
+                                    ForEach(Array(filteredEvents.enumerated()), id: \.element.id) { index, event in
                                         VibeEventCard(event: event)
+                                            .transition(.asymmetric(
+                                                insertion: .move(edge: .trailing).combined(with: .opacity),
+                                                removal: .move(edge: .leading).combined(with: .opacity)
+                                            ))
+                                            .animation(
+                                                .spring(response: 0.3, dampingFraction: 0.7)
+                                                .delay(Double(index) * 0.05),
+                                                value: searchText
+                                            )
                                     }
                                 }
                             }
                             
-                            // Extra padding at the bottom to prevent overflow
+                            // Extra padding at the bottom
                             Color.clear
-                                .frame(height: 20)
+                                .frame(height: 100)
                         }
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 80) // Padding for bottom navigation
                     }
-                    .padding(.top, 8)
+                    .padding(.top, 5) // Minimal top padding for more list space
                 }
-                
-                Spacer(minLength: 0) // Remove extra spacer at bottom
             }
         }
         .onAppear {
             loadData()
+        }
+        .onTapGesture {
+            // Dismiss keyboard and reset focus when tapping outside
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                if searchText.isEmpty {
+                    isSearchFocused = false
+                }
+            }
         }
     }
     
@@ -201,50 +319,108 @@ struct InfluencerSearchView: View {
                 
                 // For now, events are empty - you can implement this later
                 self.events = []
-                self.isLoading = false
+                
+                withAnimation {
+                    self.isLoading = false
+                }
             }
     }
 }
 
-// MARK: - Influencer Vibe Toggle (Smaller version)
-struct InfluencerVibeToggle: View {
+// MARK: - Circular Toggle (Elegant dark design)
+struct CircularInfluencerToggle: View {
     @Binding var selectedMode: InfluencerSearchMode
+    let isCompact: Bool
     @Namespace private var animation
     
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach([InfluencerSearchMode.businesses, .events], id: \.self) { mode in
-                Button(action: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        selectedMode = mode
+        HStack(spacing: 2) {
+            // Offers button
+            Button(action: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    selectedMode = .businesses
+                }
+            }) {
+                ZStack {
+                    Circle()
+                        .fill(selectedMode == .businesses ?
+                            Color.black :
+                            Color.black.opacity(0.05)
+                        )
+                        .frame(width: isCompact ? 38 : 44, height: isCompact ? 38 : 44)
+                    
+                    if selectedMode == .businesses {
+                        Circle()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color.pink.opacity(0.6), Color.purple.opacity(0.6)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1.5
+                            )
+                            .frame(width: isCompact ? 38 : 44, height: isCompact ? 38 : 44)
                     }
-                }) {
-                    VStack(spacing: 2) {
-                        HStack(spacing: 4) {
-                            Image(systemName: mode == .businesses ? "gift.fill" : "calendar.badge.plus")
-                                .font(.system(size: 14, weight: .medium, design: .rounded))
-                            Text(mode == .businesses ? "Offers" : "Events")
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    
+                    VStack(spacing: 1) {
+                        Image(systemName: "gift.fill")
+                            .font(.system(size: isCompact ? 14 : 16, weight: .medium))
+                        if !isCompact {
+                            Text("Offers")
+                                .font(.system(size: 8, weight: .medium, design: .rounded))
                         }
-                        .foregroundColor(selectedMode == mode ? .white : .gray)
-                        .padding(.vertical, 10) // Slightly more vertical padding
-                        .padding(.horizontal, 20) // Slightly more horizontal padding
-                        .frame(maxWidth: .infinity)
                     }
+                    .foregroundColor(selectedMode == .businesses ? .white : .black.opacity(0.4))
                 }
             }
+            .scaleEffect(selectedMode == .businesses ? 1.05 : 1.0)
+            
+            // Events button
+            Button(action: {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    selectedMode = .events
+                }
+            }) {
+                ZStack {
+                    Circle()
+                        .fill(selectedMode == .events ?
+                            Color.black :
+                            Color.black.opacity(0.05)
+                        )
+                        .frame(width: isCompact ? 38 : 44, height: isCompact ? 38 : 44)
+                    
+                    if selectedMode == .events {
+                        Circle()
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color.orange.opacity(0.6), Color.pink.opacity(0.6)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1.5
+                            )
+                            .frame(width: isCompact ? 38 : 44, height: isCompact ? 38 : 44)
+                    }
+                    
+                    VStack(spacing: 1) {
+                        Image(systemName: "calendar.badge.plus")
+                            .font(.system(size: isCompact ? 14 : 16, weight: .medium))
+                        if !isCompact {
+                            Text("Events")
+                                .font(.system(size: 8, weight: .medium, design: .rounded))
+                        }
+                    }
+                    .foregroundColor(selectedMode == .events ? .white : .black.opacity(0.4))
+                }
+            }
+            .scaleEffect(selectedMode == .events ? 1.05 : 1.0)
         }
+        .padding(4)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(
-                    LinearGradient(
-                        colors: [.pink, .purple],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
+            Capsule()
+                .fill(Color.white)
+                .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
         )
-        .shadow(color: Color.purple.opacity(0.3), radius: 8, y: 3)
     }
 }
 
