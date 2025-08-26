@@ -47,7 +47,258 @@ class FirebaseBusinessService: ObservableObject {
             }
     }
     
-    // MARK: - Create Business with Category Data (NEW)
+    // MARK: - Create Business with Enhanced Data
+    func createBusinessWithEnhancedData(
+        name: String,
+        address: String,
+        placeID: String,
+        category: String,
+        offer: String,
+        selectedImage: UIImage? = nil,
+        selectedVideoURL: URL? = nil,
+        menuImage: UIImage? = nil,
+        googleReviews: [GPlaceDetails.Review] = [],
+        categoryData: CategoryData? = nil,
+        menuItems: [[String: String]],
+        businessHours: String,
+        phoneNumber: String,
+        missionStatement: String,
+        completion: @escaping (Result<(String, String), Error>) -> Void
+    ) {
+        isLoading = true
+        print("🚀 Creating enhanced business: \(name)")
+        
+        // Build business data including all enhanced fields
+        var businessData: [String: Any] = [
+            "name": name,
+            "address": address,
+            "placeID": placeID,
+            "category": category,
+            "offer": offer,
+            "createdAt": Timestamp(),
+            "isVerified": true,
+            "imageURL": "",
+            "videoURL": "",
+            "menuImageURL": "",
+            "mediaType": "",
+            "phone": phoneNumber,
+            "hours": businessHours,
+            "website": "",
+            "rating": calculateAverageRating(from: googleReviews),
+            "reviewCount": googleReviews.count,
+            "latitude": 37.7749,
+            "longitude": -122.4194,
+            "missionStatement": missionStatement,
+            "menuItems": menuItems
+        ]
+        
+        // Add category data if provided
+        if let categoryData = categoryData {
+            businessData["mainCategory"] = categoryData.mainCategory
+            let allSubtypes = categoryData.subtypes + categoryData.customTags
+            businessData["subtypes"] = allSubtypes
+            businessData["customTags"] = []
+            
+            print("📂 Adding category data:")
+            print("   - Main Category: \(categoryData.mainCategory)")
+            print("   - All Subtypes: \(allSubtypes)")
+        }
+        
+        // Add menu data
+        print("🍽 Adding \(menuItems.count) menu items")
+        
+        // Create the document
+        var docRef: DocumentReference? = nil
+        docRef = db.collection(businessCollection).addDocument(data: businessData) { [weak self] error in
+            if let error = error {
+                DispatchQueue.main.async {
+                    self?.isLoading = false
+                    print("❌ Error creating business: \(error.localizedDescription)")
+                    completion(.failure(error))
+                }
+            } else if let documentId = docRef?.documentID {
+                // Upload images if provided
+                var uploadTasks: [(type: String, image: UIImage)] = []
+                
+                if let mainImage = selectedImage {
+                    uploadTasks.append(("main", mainImage))
+                }
+                if let menuImg = menuImage {
+                    uploadTasks.append(("menu", menuImg))
+                }
+                
+                if !uploadTasks.isEmpty {
+                    self?.uploadBusinessImages(
+                        businessId: documentId,
+                        images: uploadTasks
+                    ) { imageUrls in
+                        // Update document with image URLs
+                        var updateData: [String: Any] = [:]
+                        
+                        if let mainUrl = imageUrls["main"] {
+                            updateData["imageURL"] = mainUrl
+                            updateData["mediaType"] = "image"
+                        }
+                        if let menuUrl = imageUrls["menu"] {
+                            updateData["menuImageURL"] = menuUrl
+                        }
+                        
+                        if !updateData.isEmpty {
+                            docRef?.updateData(updateData) { _ in
+                                DispatchQueue.main.async {
+                                    self?.isLoading = false
+                                    print("✅ Business created with images: \(documentId)")
+                                    completion(.success(("Business created successfully!", documentId)))
+                                }
+                            }
+                        } else {
+                            DispatchQueue.main.async {
+                                self?.isLoading = false
+                                completion(.success(("Business created successfully!", documentId)))
+                            }
+                        }
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        self?.isLoading = false
+                        print("✅ Business created without images: \(documentId)")
+                        completion(.success(("Business created successfully!", documentId)))
+                    }
+                }
+            } else {
+                DispatchQueue.main.async {
+                    self?.isLoading = false
+                    print("❌ Error: Could not get document ID")
+                    completion(.failure(NSError(
+                        domain: "FirebaseBusinessService",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Could not get document ID"]
+                    )))
+                }
+            }
+        }
+    }
+    
+    // MARK: - Upload Business Images
+    private func uploadBusinessImages(
+        businessId: String,
+        images: [(type: String, image: UIImage)],
+        completion: @escaping ([String: String]) -> Void
+    ) {
+        var uploadedUrls: [String: String] = [:]
+        let dispatchGroup = DispatchGroup()
+        
+        for (type, image) in images {
+            dispatchGroup.enter()
+            
+            guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+                dispatchGroup.leave()
+                continue
+            }
+            
+            let imageName = "\(businessId)_\(type)_\(UUID().uuidString).jpg"
+            let storageRef = storage.reference().child("business_images/\(businessId)/\(imageName)")
+            
+            let metadata = StorageMetadata()
+            metadata.contentType = "image/jpeg"
+            
+            storageRef.putData(imageData, metadata: metadata) { _, error in
+                if let error = error {
+                    print("❌ Error uploading \(type) image: \(error.localizedDescription)")
+                    dispatchGroup.leave()
+                } else {
+                    storageRef.downloadURL { url, error in
+                        if let url = url {
+                            uploadedUrls[type] = url.absoluteString
+                            print("✅ Uploaded \(type) image: \(url.absoluteString)")
+                        }
+                        dispatchGroup.leave()
+                    }
+                }
+            }
+        }
+        
+        dispatchGroup.notify(queue: .main) {
+            completion(uploadedUrls)
+        }
+    }
+    
+    // MARK: - Update Business Menu
+    func updateBusinessMenu(
+        businessId: String,
+        menuItems: [[String: String]],
+        menuImageURL: String? = nil,
+        completion: @escaping (Bool) -> Void
+    ) {
+        guard !businessId.isEmpty else {
+            print("❌ Error: Empty business ID provided")
+            completion(false)
+            return
+        }
+        
+        var updateData: [String: Any] = [
+            "menuItems": menuItems
+        ]
+        
+        if let menuImageURL = menuImageURL {
+            updateData["menuImageURL"] = menuImageURL
+        }
+        
+        db.collection(businessCollection).document(businessId).updateData(updateData) { error in
+            if let error = error {
+                print("❌ Error updating menu: \(error.localizedDescription)")
+                completion(false)
+            } else {
+                print("✅ Menu updated successfully")
+                completion(true)
+            }
+        }
+    }
+    
+    // MARK: - Update Business Details
+    func updateBusinessDetails(
+        businessId: String,
+        hours: String,
+        phone: String,
+        missionStatement: String,
+        completion: @escaping (Bool) -> Void
+    ) {
+        guard !businessId.isEmpty else {
+            print("❌ Error: Empty business ID provided")
+            completion(false)
+            return
+        }
+        
+        let updateData: [String: Any] = [
+            "hours": hours,
+            "phone": phone,
+            "missionStatement": missionStatement
+        ]
+        
+        db.collection(businessCollection).document(businessId).updateData(updateData) { error in
+            if let error = error {
+                print("❌ Error updating business details: \(error.localizedDescription)")
+                completion(false)
+            } else {
+                print("✅ Business details updated successfully")
+                completion(true)
+            }
+        }
+    }
+    
+    // MARK: - Helper Functions
+    private func calculateAverageRating(from reviews: [GPlaceDetails.Review]) -> Double {
+        guard !reviews.isEmpty else { return 0.0 }
+        
+        let totalRating = reviews.compactMap { $0.rating }.reduce(0, +)
+        let validReviewCount = reviews.compactMap { $0.rating }.count
+        
+        guard validReviewCount > 0 else { return 0.0 }
+        
+        return Double(totalRating) / Double(validReviewCount)
+    }
+    
+    // MARK: - Create Business with Category Data (Existing method for backward compatibility)
     func createBusinessWithCategoryData(
         name: String,
         address: String,
@@ -60,64 +311,27 @@ class FirebaseBusinessService: ObservableObject {
         categoryData: CategoryData? = nil,
         completion: @escaping (Result<(String, String), Error>) -> Void
     ) {
-        isLoading = true
-        print("🚀 Creating business with categories: \(name)")
-        
-        // Build business data including category information
-        var businessData: [String: Any] = [
-            "name": name,
-            "address": address,
-            "placeID": placeID,
-            "category": category,
-            "offer": offer,
-            "createdAt": Timestamp(),
-            "isVerified": true,
-            "imageURL": "",
-            "videoURL": "",
-            "mediaType": "",
-            "phone": "",
-            "hours": "10AM - 10PM",
-            "website": "",
-            "rating": 4.5,
-            "reviewCount": googleReviews.count,
-            "latitude": 37.7749,
-            "longitude": -122.4194
-        ]
-        
-        // Add category data if provided
-        if let categoryData = categoryData {
-            businessData["mainCategory"] = categoryData.mainCategory
-            // Merge custom tags into subtypes
-            let allSubtypes = categoryData.subtypes + categoryData.customTags
-            businessData["subtypes"] = allSubtypes
-            businessData["customTags"] = []  // Keep empty for backward compatibility
-            
-            print("📂 Adding category data:")
-            print("   - Main Category: \(categoryData.mainCategory)")
-            print("   - All Subtypes: \(allSubtypes)")
-        }
-        
-        // Use addDocument which returns the document reference
-        var docRef: DocumentReference? = nil
-        docRef = db.collection(businessCollection).addDocument(data: businessData) { [weak self] error in
-            DispatchQueue.main.async {
-                self?.isLoading = false
-                if let error = error {
-                    print("❌ Error creating business: \(error.localizedDescription)")
-                    completion(.failure(error))
-                } else if let documentId = docRef?.documentID {
-                    print("✅ Business saved to Firebase with ID: \(documentId)")
-                    print("✅ Category data saved successfully")
-                    completion(.success(("Business created successfully!", documentId)))
-                } else {
-                    print("❌ Error: Could not get document ID")
-                    completion(.failure(NSError(domain: "FirebaseBusinessService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Could not get document ID"])))
-                }
-            }
-        }
+        // Call the enhanced method with default values for new fields
+        createBusinessWithEnhancedData(
+            name: name,
+            address: address,
+            placeID: placeID,
+            category: category,
+            offer: offer,
+            selectedImage: selectedImage,
+            selectedVideoURL: selectedVideoURL,
+            menuImage: nil,
+            googleReviews: googleReviews,
+            categoryData: categoryData,
+            menuItems: [],
+            businessHours: "10AM - 10PM",
+            phoneNumber: "",
+            missionStatement: "",
+            completion: completion
+        )
     }
     
-    // MARK: - Create Business (Updated to return business ID)
+    // MARK: - Create Business with ID (Existing method for backward compatibility)
     func createBusinessWithId(
         name: String,
         address: String,
@@ -127,9 +341,8 @@ class FirebaseBusinessService: ObservableObject {
         selectedImage: UIImage? = nil,
         selectedVideoURL: URL? = nil,
         googleReviews: [GPlaceDetails.Review] = [],
-        completion: @escaping (Result<(String, String), Error>) -> Void // Returns (message, businessId)
+        completion: @escaping (Result<(String, String), Error>) -> Void
     ) {
-        // Call the new method without category data for backward compatibility
         createBusinessWithCategoryData(
             name: name,
             address: address,
@@ -144,7 +357,7 @@ class FirebaseBusinessService: ObservableObject {
         )
     }
     
-    // Keep the old method for backward compatibility
+    // MARK: - Create Business (Original method for backward compatibility)
     func createBusiness(
         name: String,
         address: String,
@@ -192,7 +405,6 @@ class FirebaseBusinessService: ObservableObject {
             
             let business = try? snapshot?.data(as: FirebaseBusiness.self)
             
-            // Debug print the retrieved data
             if let business = business {
                 print("✅ Retrieved business: \(business.name)")
                 print("   - Main Category: \(business.mainCategory ?? "None")")
@@ -231,13 +443,12 @@ class FirebaseBusinessService: ObservableObject {
             return
         }
         
-        // Merge custom tags into subtypes for storage
-        let allSubtypes = subtypes  // Since we're already merging in the UI, subtypes contains everything
+        let allSubtypes = subtypes
         
         let updateData: [String: Any] = [
             "mainCategory": mainCategory,
             "subtypes": allSubtypes,
-            "customTags": []  // Keep empty for backward compatibility
+            "customTags": []
         ]
         
         db.collection(businessCollection).document(businessId).updateData(updateData) { error in
@@ -252,4 +463,4 @@ class FirebaseBusinessService: ObservableObject {
             }
         }
     }
-}   
+}
