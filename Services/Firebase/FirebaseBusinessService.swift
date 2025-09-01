@@ -47,7 +47,7 @@ class FirebaseBusinessService: ObservableObject {
             }
     }
     
-    // MARK: - Create Business with Enhanced Data
+    // MARK: - Create Business with Enhanced Data (UPDATED TO HANDLE MENU ITEM IMAGES)
     func createBusinessWithEnhancedData(
         name: String,
         address: String,
@@ -56,10 +56,9 @@ class FirebaseBusinessService: ObservableObject {
         offer: String,
         selectedImage: UIImage? = nil,
         selectedVideoURL: URL? = nil,
-        menuImage: UIImage? = nil,
         googleReviews: [GPlaceDetails.Review] = [],
         categoryData: CategoryData? = nil,
-        menuItems: [[String: String]],
+        menuItems: [MenuItem],  // Changed from [[String: String]] to [MenuItem]
         businessHours: String,
         phoneNumber: String,
         missionStatement: String,
@@ -68,112 +67,168 @@ class FirebaseBusinessService: ObservableObject {
         isLoading = true
         print("🚀 Creating enhanced business: \(name)")
         
-        // Build business data including all enhanced fields
-        var businessData: [String: Any] = [
-            "name": name,
-            "address": address,
-            "placeID": placeID,
-            "category": category,
-            "offer": offer,
-            "createdAt": Timestamp(),
-            "isVerified": true,
-            "imageURL": "",
-            "videoURL": "",
-            "menuImageURL": "",
-            "mediaType": "",
-            "phone": phoneNumber,
-            "hours": businessHours,
-            "website": "",
-            "rating": calculateAverageRating(from: googleReviews),
-            "reviewCount": googleReviews.count,
-            "latitude": 37.7749,
-            "longitude": -122.4194,
-            "missionStatement": missionStatement,
-            "menuItems": menuItems
-        ]
+        // First, upload all menu item images
+        var menuItemsData: [[String: String]] = []
+        let dispatchGroup = DispatchGroup()
         
-        // Add category data if provided
-        if let categoryData = categoryData {
-            businessData["mainCategory"] = categoryData.mainCategory
-            let allSubtypes = categoryData.subtypes + categoryData.customTags
-            businessData["subtypes"] = allSubtypes
-            businessData["customTags"] = []
+        for (index, item) in menuItems.enumerated() {
+            dispatchGroup.enter()
             
-            print("📂 Adding category data:")
-            print("   - Main Category: \(categoryData.mainCategory)")
-            print("   - All Subtypes: \(allSubtypes)")
+            var itemData: [String: String] = [
+                "name": item.name,
+                "price": item.price,
+                "description": item.description
+            ]
+            
+            // Upload menu item image if it exists
+            if let image = item.image {
+                uploadMenuItemImage(
+                    businessName: name,
+                    itemIndex: index,
+                    image: image
+                ) { imageUrl in
+                    if let url = imageUrl {
+                        itemData["imageURL"] = url
+                    }
+                    menuItemsData.append(itemData)
+                    dispatchGroup.leave()
+                }
+            } else {
+                menuItemsData.append(itemData)
+                dispatchGroup.leave()
+            }
         }
         
-        // Add menu data
-        print("🍽 Adding \(menuItems.count) menu items")
-        
-        // Create the document
-        var docRef: DocumentReference? = nil
-        docRef = db.collection(businessCollection).addDocument(data: businessData) { [weak self] error in
-            if let error = error {
-                DispatchQueue.main.async {
-                    self?.isLoading = false
-                    print("❌ Error creating business: \(error.localizedDescription)")
-                    completion(.failure(error))
-                }
-            } else if let documentId = docRef?.documentID {
-                // Upload images if provided
-                var uploadTasks: [(type: String, image: UIImage)] = []
+        // Wait for all menu item images to upload, then create the business
+        dispatchGroup.notify(queue: .main) { [weak self] in
+            // Build business data including all enhanced fields
+            var businessData: [String: Any] = [
+                "name": name,
+                "address": address,
+                "placeID": placeID,
+                "category": category,
+                "offer": offer,
+                "createdAt": Timestamp(),
+                "isVerified": true,
+                "imageURL": "",
+                "videoURL": "",
+                "mediaType": "",
+                "phone": phoneNumber,
+                "hours": businessHours,
+                "website": "",
+                "rating": self?.calculateAverageRating(from: googleReviews) ?? 0.0,
+                "reviewCount": googleReviews.count,
+                "latitude": 37.7749,
+                "longitude": -122.4194,
+                "missionStatement": missionStatement,
+                "menuItems": menuItemsData  // Now includes image URLs
+            ]
+            
+            // Add category data if provided
+            if let categoryData = categoryData {
+                businessData["mainCategory"] = categoryData.mainCategory
+                let allSubtypes = categoryData.subtypes + categoryData.customTags
+                businessData["subtypes"] = allSubtypes
+                businessData["customTags"] = []
                 
-                if let mainImage = selectedImage {
-                    uploadTasks.append(("main", mainImage))
-                }
-                if let menuImg = menuImage {
-                    uploadTasks.append(("menu", menuImg))
-                }
-                
-                if !uploadTasks.isEmpty {
-                    self?.uploadBusinessImages(
-                        businessId: documentId,
-                        images: uploadTasks
-                    ) { imageUrls in
-                        // Update document with image URLs
-                        var updateData: [String: Any] = [:]
-                        
-                        if let mainUrl = imageUrls["main"] {
-                            updateData["imageURL"] = mainUrl
-                            updateData["mediaType"] = "image"
-                        }
-                        if let menuUrl = imageUrls["menu"] {
-                            updateData["menuImageURL"] = menuUrl
-                        }
-                        
-                        if !updateData.isEmpty {
-                            docRef?.updateData(updateData) { _ in
+                print("📂 Adding category data:")
+                print("   - Main Category: \(categoryData.mainCategory)")
+                print("   - All Subtypes: \(allSubtypes)")
+            }
+            
+            print("🍽 Adding \(menuItemsData.count) menu items with images")
+            
+            // Create the document
+            var docRef: DocumentReference? = nil
+            docRef = self?.db.collection(self?.businessCollection ?? "businesses").addDocument(data: businessData) { error in
+                if let error = error {
+                    DispatchQueue.main.async {
+                        self?.isLoading = false
+                        print("❌ Error creating business: \(error.localizedDescription)")
+                        completion(.failure(error))
+                    }
+                } else if let documentId = docRef?.documentID {
+                    // Upload main business image if provided
+                    if let mainImage = selectedImage {
+                        self?.uploadBusinessImages(
+                            businessId: documentId,
+                            images: [("main", mainImage)]
+                        ) { imageUrls in
+                            // Update document with image URL
+                            var updateData: [String: Any] = [:]
+                            
+                            if let mainUrl = imageUrls["main"] {
+                                updateData["imageURL"] = mainUrl
+                                updateData["mediaType"] = "image"
+                            }
+                            
+                            if !updateData.isEmpty {
+                                docRef?.updateData(updateData) { _ in
+                                    DispatchQueue.main.async {
+                                        self?.isLoading = false
+                                        print("✅ Business created with images: \(documentId)")
+                                        completion(.success(("Business created successfully!", documentId)))
+                                    }
+                                }
+                            } else {
                                 DispatchQueue.main.async {
                                     self?.isLoading = false
-                                    print("✅ Business created with images: \(documentId)")
                                     completion(.success(("Business created successfully!", documentId)))
                                 }
                             }
-                        } else {
-                            DispatchQueue.main.async {
-                                self?.isLoading = false
-                                completion(.success(("Business created successfully!", documentId)))
-                            }
+                        }
+                    } else {
+                        DispatchQueue.main.async {
+                            self?.isLoading = false
+                            print("✅ Business created without main image: \(documentId)")
+                            completion(.success(("Business created successfully!", documentId)))
                         }
                     }
                 } else {
                     DispatchQueue.main.async {
                         self?.isLoading = false
-                        print("✅ Business created without images: \(documentId)")
-                        completion(.success(("Business created successfully!", documentId)))
+                        print("❌ Error: Could not get document ID")
+                        completion(.failure(NSError(
+                            domain: "FirebaseBusinessService",
+                            code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Could not get document ID"]
+                        )))
                     }
                 }
+            }
+        }
+    }
+    
+    // MARK: - Upload Menu Item Image (NEW METHOD)
+    private func uploadMenuItemImage(
+        businessName: String,
+        itemIndex: Int,
+        image: UIImage,
+        completion: @escaping (String?) -> Void
+    ) {
+        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+            completion(nil)
+            return
+        }
+        
+        let imageName = "\(businessName.replacingOccurrences(of: " ", with: "_"))_menu_item_\(itemIndex)_\(UUID().uuidString).jpg"
+        let storageRef = storage.reference().child("menu_items/\(imageName)")
+        
+        let metadata = StorageMetadata()
+        metadata.contentType = "image/jpeg"
+        
+        storageRef.putData(imageData, metadata: metadata) { _, error in
+            if let error = error {
+                print("❌ Error uploading menu item image: \(error.localizedDescription)")
+                completion(nil)
             } else {
-                DispatchQueue.main.async {
-                    self?.isLoading = false
-                    print("❌ Error: Could not get document ID")
-                    completion(.failure(NSError(
-                        domain: "FirebaseBusinessService",
-                        code: -1,
-                        userInfo: [NSLocalizedDescriptionKey: "Could not get document ID"]
-                    )))
+                storageRef.downloadURL { url, error in
+                    if let url = url {
+                        print("✅ Uploaded menu item image: \(url.absoluteString)")
+                        completion(url.absoluteString)
+                    } else {
+                        completion(nil)
+                    }
                 }
             }
         }
@@ -223,11 +278,10 @@ class FirebaseBusinessService: ObservableObject {
         }
     }
     
-    // MARK: - Update Business Menu
-    func updateBusinessMenu(
+    // MARK: - Update Menu Items with Images (NEW METHOD)
+    func updateMenuItemsWithImages(
         businessId: String,
-        menuItems: [[String: String]],
-        menuImageURL: String? = nil,
+        menuItems: [MenuItem],
         completion: @escaping (Bool) -> Void
     ) {
         guard !businessId.isEmpty else {
@@ -236,22 +290,54 @@ class FirebaseBusinessService: ObservableObject {
             return
         }
         
-        var updateData: [String: Any] = [
-            "menuItems": menuItems
-        ]
+        // Convert MenuItem objects to data format with image URLs
+        var menuItemsData: [[String: String]] = []
+        let dispatchGroup = DispatchGroup()
         
-        if let menuImageURL = menuImageURL {
-            updateData["menuImageURL"] = menuImageURL
+        for (index, item) in menuItems.enumerated() {
+            dispatchGroup.enter()
+            
+            var itemData: [String: String] = [
+                "name": item.name,
+                "price": item.price,
+                "description": item.description
+            ]
+            
+            // Upload new image if present
+            if let image = item.image {
+                uploadMenuItemImage(
+                    businessName: businessId,
+                    itemIndex: index,
+                    image: image
+                ) { imageUrl in
+                    if let url = imageUrl {
+                        itemData["imageURL"] = url
+                    }
+                    menuItemsData.append(itemData)
+                    dispatchGroup.leave()
+                }
+            } else {
+                menuItemsData.append(itemData)
+                dispatchGroup.leave()
+            }
         }
         
-        db.collection(businessCollection).document(businessId).updateData(updateData) { error in
-            if let error = error {
-                print("❌ Error updating menu: \(error.localizedDescription)")
-                completion(false)
-            } else {
-                print("✅ Menu updated successfully")
-                completion(true)
-            }
+        dispatchGroup.notify(queue: .main) { [weak self] in
+            let updateData: [String: Any] = [
+                "menuItems": menuItemsData
+            ]
+            
+            self?.db.collection(self?.businessCollection ?? "businesses")
+                .document(businessId)
+                .updateData(updateData) { error in
+                    if let error = error {
+                        print("❌ Error updating menu items: \(error.localizedDescription)")
+                        completion(false)
+                    } else {
+                        print("✅ Menu items with images updated successfully")
+                        completion(true)
+                    }
+                }
         }
     }
     
@@ -320,7 +406,6 @@ class FirebaseBusinessService: ObservableObject {
             offer: offer,
             selectedImage: selectedImage,
             selectedVideoURL: selectedVideoURL,
-            menuImage: nil,
             googleReviews: googleReviews,
             categoryData: categoryData,
             menuItems: [],

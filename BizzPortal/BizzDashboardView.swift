@@ -66,6 +66,12 @@ struct BusinessDashboardView: View {
                     // Analytics Grid
                     AnalyticsGridView(business: business, selectedTimeframe: $selectedTimeframe)
                     
+                    // Menu Section (if business has menu items)
+                    if let menuItems = business.menuItems, !menuItems.isEmpty {
+                        MenuSection(business: business)
+                            .padding(.horizontal)
+                    }
+                    
                     // Category & Tags Section
                     CategoryAndTagsSection(
                         business: navigationState.userBusiness ?? business,
@@ -167,6 +173,136 @@ struct BusinessDashboardView: View {
     }
 }
 
+// MARK: - Menu Section (NEW)
+struct MenuSection: View {
+    let business: FirebaseBusiness
+    @State private var isExpanded = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Section Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Menu")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
+                    
+                    Text("Your offerings")
+                        .font(.caption)
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
+                }
+                
+                Spacer()
+                
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        isExpanded.toggle()
+                    }
+                }) {
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                        .padding(8)
+                        .background(
+                            Circle()
+                                .fill(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.1))
+                        )
+                }
+            }
+            
+            if isExpanded, let menuItems = business.menuItems {
+                VStack(spacing: 12) {
+                    ForEach(Array(menuItems.enumerated()), id: \.offset) { index, item in
+                        MenuItemRow(item: item, index: index)
+                    }
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+    }
+}
+
+// MARK: - Menu Item Row
+struct MenuItemRow: View {
+    let item: [String: String]
+    let index: Int
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Item Image
+            if let imageURL = item["imageURL"], !imageURL.isEmpty {
+                AsyncImage(url: URL(string: imageURL)) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.gray.opacity(0.2))
+                        .overlay(
+                            Image(systemName: "photo")
+                                .foregroundColor(.gray)
+                        )
+                }
+                .frame(width: 60, height: 60)
+                .cornerRadius(8)
+                .clipped()
+            } else {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.purple.opacity(0.2), Color.pink.opacity(0.2)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 60, height: 60)
+                    .overlay(
+                        Text("\(index + 1)")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.white)
+                    )
+            }
+            
+            // Item Details
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item["name"] ?? "Menu Item")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
+                
+                if let description = item["description"], !description.isEmpty {
+                    Text(description)
+                        .font(.system(size: 12))
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
+                        .lineLimit(2)
+                }
+            }
+            
+            Spacer()
+            
+            // Price
+            if let price = item["price"], !price.isEmpty {
+                Text(price.hasPrefix("$") ? price : "$\(price)")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color(red: 0.4, green: 0.2, blue: 0.6), Color(red: 0.5, green: 0.3, blue: 0.7)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+            }
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(Color.gray.opacity(0.05))
+        .cornerRadius(10)
+    }
+}
+
 // MARK: - Category & Tags Section
 struct CategoryAndTagsSection: View {
     let business: FirebaseBusiness
@@ -248,7 +384,7 @@ struct CategoryAndTagsSection: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
                 
-                FlowLayout(spacing: 8) {
+                DashboardFlowLayout(spacing: 8) {
                     // All subtypes (including custom tags)
                     ForEach(editableSubtypes, id: \.self) { subtype in
                         TagChip(
@@ -1553,7 +1689,7 @@ struct SubtypesSection: View {
             }
             .padding(.horizontal)
             
-            FlowLayout(spacing: 12) {
+            DashboardFlowLayout(spacing: 12) {
                 // Only show category subtypes - NO custom tags here
                 ForEach(category.subtypes, id: \.self) { subtype in
                     SubtypeChip(
@@ -1667,7 +1803,7 @@ struct CustomTagsSection: View {
             
             // Show existing custom tags
             if !customTags.isEmpty {
-                FlowLayout(spacing: 8) {
+                DashboardFlowLayout(spacing: 8) {
                     ForEach(customTags, id: \.self) { tag in
                         HStack(spacing: 6) {
                             Text(tag)
@@ -1736,4 +1872,82 @@ struct CustomTagsSection: View {
     }
 }
 
-// FlowLayout is already defined elsewhere in the project
+// MARK: - Dashboard Flow Layout (renamed to avoid conflict)
+struct DashboardFlowLayout: Layout {
+    var spacing: CGFloat = 8
+    
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let result = FlowResult(
+            in: proposal.replacingUnspecifiedDimensions().width,
+            subviews: subviews,
+            spacing: spacing
+        )
+        return CGSize(width: proposal.replacingUnspecifiedDimensions().width, height: result.height)
+    }
+    
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = FlowResult(
+            in: bounds.width,
+            subviews: subviews,
+            spacing: spacing
+        )
+        for row in result.rows {
+            for item in row.items {
+                let frame = CGRect(
+                    x: bounds.minX + item.x,
+                    y: bounds.minY + row.y,
+                    width: item.width,
+                    height: row.height
+                )
+                subviews[item.index].place(at: frame.origin, proposal: ProposedViewSize(frame.size))
+            }
+        }
+    }
+    
+    struct FlowResult {
+        var rows: [Row] = []
+        var height: CGFloat = 0
+        
+        struct Row {
+            var items: [Item] = []
+            var y: CGFloat = 0
+            var height: CGFloat = 0
+        }
+        
+        struct Item {
+            let index: Int
+            let x: CGFloat
+            let width: CGFloat
+        }
+        
+        init(in width: CGFloat, subviews: Subviews, spacing: CGFloat) {
+            var currentRow = Row()
+            var x: CGFloat = 0
+            var y: CGFloat = 0
+            
+            for (index, subview) in subviews.enumerated() {
+                let size = subview.sizeThatFits(.unspecified)
+                
+                if x + size.width > width && !currentRow.items.isEmpty {
+                    currentRow.y = y
+                    rows.append(currentRow)
+                    y += currentRow.height + spacing
+                    currentRow = Row()
+                    x = 0
+                }
+                
+                currentRow.items.append(Item(index: index, x: x, width: size.width))
+                currentRow.height = max(currentRow.height, size.height)
+                x += size.width + spacing
+            }
+            
+            if !currentRow.items.isEmpty {
+                currentRow.y = y
+                rows.append(currentRow)
+                y += currentRow.height
+            }
+            
+            height = y
+        }
+    }
+}

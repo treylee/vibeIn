@@ -1,4 +1,4 @@
-// Path: vibeIn/Models/Firebase/FirebaseBusinessModels.swift
+// Path: vibeIn/Models/Firebase/FirebaseBusiness.swift
 
 import Foundation
 import FirebaseFirestore
@@ -25,12 +25,16 @@ struct FirebaseBusiness: Codable, Identifiable, Equatable {
     let website: String?
     let rating: Double?
     let reviewCount: Int?
+    let missionStatement: String?
+    
+    // Menu Items (ADDED)
+    let menuItems: [[String: String]]?
     
     // Location data
     let latitude: Double?
     let longitude: Double?
     
-    // Category and Tags (NEW FIELDS)
+    // Category and Tags
     let mainCategory: String?
     let subtypes: [String]?
     let customTags: [String]?
@@ -76,5 +80,9 @@ struct FirebaseBusiness: Codable, Identifiable, Equatable {
     
     var hasCategories: Bool {
         return mainCategory != nil || !(subtypes?.isEmpty ?? true)
+    }
+    
+    var hasMenuItems: Bool {
+        return !(menuItems?.isEmpty ?? true)
     }
 }

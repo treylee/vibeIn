@@ -27,10 +27,8 @@ struct BizzPreviewView: View {
     
     @State private var showingImagePicker = false
     @State private var showingVideoPicker = false
-    @State private var showingMenuImagePicker = false
     @State private var selectedImage: UIImage? = nil
     @State private var selectedVideoURL: URL? = nil
-    @State private var menuImage: UIImage? = nil
     @State private var showMapView = true
     @State private var selectedContentTab = 0
     @State private var liveGoogleReviews: [GPlaceDetails.Review] = []
@@ -89,8 +87,6 @@ struct BizzPreviewView: View {
                 loadingReviews: loadingReviews,
                 mapRegion: mapRegion,
                 menuItems: $menuItems,
-                menuImage: $menuImage,
-                showingMenuImagePicker: $showingMenuImagePicker,
                 businessHours: $businessHours,
                 phoneNumber: $phoneNumber,
                 missionStatement: $missionStatement,
@@ -127,9 +123,6 @@ struct BizzPreviewView: View {
                 selectedImage = nil
                 showMapView = false
             }
-        }
-        .sheet(isPresented: $showingMenuImagePicker) {
-            ImagePicker(selectedImage: $menuImage)
         }
         .sheet(isPresented: $showingMenuItemImagePicker) {
             ImagePicker(selectedImage: $tempMenuItemImage) {
@@ -170,9 +163,6 @@ struct BizzPreviewView: View {
     }
 }
 
-// Using the existing ImagePicker from MediaPickers.swift
-// No need to redefine it here
-
 // MARK: - Bizz Preview Content
 struct BizzPreviewContent: View {
     let businessName: String
@@ -189,8 +179,6 @@ struct BizzPreviewContent: View {
     let loadingReviews: Bool
     let mapRegion: MKCoordinateRegion
     @Binding var menuItems: [MenuItem]
-    @Binding var menuImage: UIImage?
-    @Binding var showingMenuImagePicker: Bool
     @Binding var businessHours: String
     @Binding var phoneNumber: String
     @Binding var missionStatement: String
@@ -221,8 +209,6 @@ struct BizzPreviewContent: View {
                     loadingReviews: loadingReviews,
                     mapRegion: mapRegion,
                     menuItems: $menuItems,
-                    menuImage: $menuImage,
-                    showingMenuImagePicker: $showingMenuImagePicker,
                     businessHours: $businessHours,
                     phoneNumber: $phoneNumber,
                     missionStatement: $missionStatement,
@@ -254,8 +240,6 @@ struct BizzPreviewCard: View {
     let loadingReviews: Bool
     let mapRegion: MKCoordinateRegion
     @Binding var menuItems: [MenuItem]
-    @Binding var menuImage: UIImage?
-    @Binding var showingMenuImagePicker: Bool
     @Binding var businessHours: String
     @Binding var phoneNumber: String
     @Binding var missionStatement: String
@@ -316,8 +300,6 @@ struct BizzPreviewCard: View {
             BizzEnhancedContentTabsSection(
                 selectedContentTab: $selectedContentTab,
                 menuItems: $menuItems,
-                menuImage: $menuImage,
-                showingMenuImagePicker: $showingMenuImagePicker,
                 businessHours: $businessHours,
                 phoneNumber: $phoneNumber,
                 missionStatement: $missionStatement,
@@ -341,7 +323,6 @@ struct BizzPreviewCard: View {
                 liveGoogleReviews: liveGoogleReviews,
                 categoryData: categoryData,
                 menuItems: menuItems,
-                menuImage: menuImage,
                 businessHours: businessHours,
                 phoneNumber: phoneNumber,
                 missionStatement: missionStatement
@@ -364,8 +345,6 @@ struct BizzPreviewCard: View {
 struct BizzEnhancedContentTabsSection: View {
     @Binding var selectedContentTab: Int
     @Binding var menuItems: [MenuItem]
-    @Binding var menuImage: UIImage?
-    @Binding var showingMenuImagePicker: Bool
     @Binding var businessHours: String
     @Binding var phoneNumber: String
     @Binding var missionStatement: String
@@ -409,8 +388,6 @@ struct BizzEnhancedContentTabsSection: View {
             if selectedContentTab == 0 {
                 ModernMenuTab(
                     menuItems: $menuItems,
-                    menuImage: $menuImage,
-                    showingMenuImagePicker: $showingMenuImagePicker,
                     isEditing: $isEditingMenu,
                     saveAction: saveMenuData,
                     selectedMenuItemForImage: $selectedMenuItemForImage,
@@ -434,11 +411,9 @@ struct BizzEnhancedContentTabsSection: View {
     }
 }
 
-// MARK: - Modern Menu Tab with Item Images
+// MARK: - Modern Menu Tab with Item Images (UPDATED - NO TOP MENU PHOTO)
 struct ModernMenuTab: View {
     @Binding var menuItems: [MenuItem]
-    @Binding var menuImage: UIImage?
-    @Binding var showingMenuImagePicker: Bool
     @Binding var isEditing: Bool
     let saveAction: () -> Void
     @Binding var selectedMenuItemForImage: MenuItem?
@@ -449,12 +424,7 @@ struct ModernMenuTab: View {
             // Header
             menuHeader
             
-            // Menu Header Image
-            if isEditing || menuImage != nil {
-                menuImageSection
-            }
-            
-            // Menu Items
+            // Menu Items List (NO TOP MENU IMAGE)
             menuItemsList
         }
     }
@@ -467,7 +437,7 @@ struct ModernMenuTab: View {
                     .foregroundStyle(
                         LinearGradient(colors: [.purple, .pink], startPoint: .leading, endPoint: .trailing)
                     )
-                Text("Showcase your best dishes")
+                Text("Add photos for each dish")
                     .font(.caption)
                     .foregroundColor(.gray)
             }
@@ -498,48 +468,6 @@ struct ModernMenuTab: View {
                 )
                 .cornerRadius(20)
             }
-        }
-    }
-    
-    private var menuImageSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if isEditing {
-                Text("Menu Photo")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.gray)
-            }
-            
-            Button(action: {
-                if isEditing {
-                    showingMenuImagePicker = true
-                }
-            }) {
-                if let image = menuImage {
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(height: 180)
-                        .cornerRadius(16)
-                        .clipped()
-                } else if isEditing {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.purple.opacity(0.1))
-                            .frame(height: 120)
-                        
-                        VStack(spacing: 8) {
-                            Image(systemName: "photo.badge.plus")
-                                .font(.title)
-                                .foregroundColor(.purple)
-                            Text("Add Menu Photo")
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
-                        }
-                    }
-                }
-            }
-            .disabled(!isEditing)
         }
     }
     
@@ -955,9 +883,6 @@ struct BizzPreviewHeader: View {
     }
 }
 
-// Continue with remaining components...
-// (Include all the other existing components from the original file)
-
 struct BizzCategoryPreview: View {
     let categoryData: CategoryData
     
@@ -1331,7 +1256,7 @@ struct BizzLiveStarRating: View {
     }
 }
 
-// MARK: - Enhanced Complete Setup Button
+// MARK: - Enhanced Complete Setup Button (UPDATED - NO MENU IMAGE)
 struct BizzEnhancedCompleteSetupButton: View {
     let businessName: String
     let address: String
@@ -1341,7 +1266,6 @@ struct BizzEnhancedCompleteSetupButton: View {
     let liveGoogleReviews: [GPlaceDetails.Review]
     let categoryData: CategoryData?
     let menuItems: [MenuItem]
-    let menuImage: UIImage?
     let businessHours: String
     let phoneNumber: String
     let missionStatement: String
@@ -1412,17 +1336,7 @@ struct BizzEnhancedCompleteSetupButton: View {
             return
         }
         
-        // Prepare menu data for storage (including images)
-        let menuData = menuItems.filter { !$0.name.isEmpty }.map { item in
-            var itemData: [String: String] = [
-                "name": item.name,
-                "price": item.price,
-                "description": item.description
-            ]
-            // Note: Item images would need to be uploaded separately and URLs stored
-            return itemData
-        }
-        
+        // Pass MenuItem objects directly to the service
         firebaseService.createBusinessWithEnhancedData(
             name: businessName,
             address: address,
@@ -1431,10 +1345,9 @@ struct BizzEnhancedCompleteSetupButton: View {
             offer: "Free Appetizer for Reviews",
             selectedImage: selectedImage,
             selectedVideoURL: selectedVideoURL,
-            menuImage: menuImage,
             googleReviews: liveGoogleReviews,
             categoryData: categoryData,
-            menuItems: menuData,
+            menuItems: menuItems.filter { !$0.name.isEmpty }, // Pass MenuItem objects directly
             businessHours: businessHours,
             phoneNumber: phoneNumber,
             missionStatement: missionStatement
