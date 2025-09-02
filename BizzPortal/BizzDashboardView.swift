@@ -4,7 +4,6 @@ import SwiftUI
 import MapKit
 
 
-
 struct BusinessDashboardView: View {
     let business: FirebaseBusiness
     @State private var showCreateOffer = false
@@ -381,10 +380,6 @@ struct DisplayMenuItemRow: View {
     }
 }
 
-// Rest of your existing structs continue here...
-// (BusinessDetailsSection, MenuSection, CategoryAndTagsSection, etc.)
-
-
 // MARK: - Enhanced Business Details Section with Working Save
 struct BusinessDetailsSection: View {
     let business: FirebaseBusiness
@@ -416,30 +411,6 @@ struct BusinessDetailsSection: View {
                 Spacer()
                 
                 HStack(spacing: 12) {
-                    // Cancel button when editing
-                    if isEditing {
-                        Button(action: {
-                            // Reset to original values
-                            loadBusinessDetails()
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                isEditing = false
-                            }
-                        }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "xmark.circle")
-                                    .font(.system(size: 14))
-                                Text("Cancel")
-                                    .font(.system(size: 14, weight: .semibold))
-                            }
-                            .foregroundColor(.red)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.red.opacity(0.1))
-                            .cornerRadius(8)
-                        }
-                        .disabled(isSaving)
-                    }
-                    
                     // Edit/Save Button
                     Button(action: {
                         if isEditing {
@@ -713,30 +684,6 @@ struct MenuSection: View {
                 Spacer()
                 
                 HStack(spacing: 12) {
-                    // Cancel button when editing
-                    if isEditing {
-                        Button(action: {
-                            // Reset to original values
-                            loadMenuItems()
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                isEditing = false
-                            }
-                        }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "xmark.circle")
-                                    .font(.system(size: 14))
-                                Text("Cancel")
-                                    .font(.system(size: 14, weight: .semibold))
-                            }
-                            .foregroundColor(.red)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.red.opacity(0.1))
-                            .cornerRadius(8)
-                        }
-                        .disabled(isSaving)
-                    }
-                    
                     // Edit/Save Button
                     Button(action: {
                         if isEditing {
@@ -950,7 +897,6 @@ struct MenuSection: View {
         }
     }
 }
-
 // MARK: - Category & Tags Section
 struct CategoryAndTagsSection: View {
     let business: FirebaseBusiness
