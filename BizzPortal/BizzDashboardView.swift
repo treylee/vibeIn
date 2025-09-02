@@ -897,7 +897,7 @@ struct MenuSection: View {
         }
     }
 }
-// MARK: - Category & Tags Section
+// MARK: - Category & Tags Section (Updated with Save Button)
 struct CategoryAndTagsSection: View {
     let business: FirebaseBusiness
     var onTagsUpdated: ((String) -> Void)?
@@ -905,6 +905,9 @@ struct CategoryAndTagsSection: View {
     @State private var newTag = ""
     @State private var editableSubtypes: [String] = []
     @State private var showingCategoryEditor = false
+    @State private var isSaving = false
+    @State private var showingSaveAlert = false
+    @State private var saveAlertMessage = ""
     @FocusState private var isTextFieldFocused: Bool
     
     var body: some View {
@@ -916,27 +919,48 @@ struct CategoryAndTagsSection: View {
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
                     
-                    Text("Help customers find you")
+                    Text(isEditing ? "Update your categories" : "Help customers find you")
                         .font(.caption)
                         .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
                 }
                 
                 Spacer()
                 
-                Button(action: { isEditing.toggle() }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: isEditing ? "checkmark" : "pencil")
-                        Text(isEditing ? "Done" : "Edit")
+                // Edit/Save Button (matching other sections)
+                Button(action: {
+                    if isEditing {
+                        saveTags()
+                    } else {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            isEditing.toggle()
+                        }
                     }
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(isEditing ? .green : Color(red: 0.4, green: 0.2, blue: 0.6))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                }) {
+                    HStack(spacing: 6) {
+                        if isSaving {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: isEditing ? "checkmark.circle.fill" : "pencil.circle.fill")
+                                .font(.system(size: 14))
+                        }
+                        Text(isSaving ? "Saving..." : (isEditing ? "Save" : "Edit"))
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
                     .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(isEditing ? Color.green.opacity(0.1) : Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.1))
+                        LinearGradient(
+                            gradient: Gradient(colors: isEditing ? [.green, .teal] : [Color(red: 0.4, green: 0.2, blue: 0.6), Color(red: 0.5, green: 0.3, blue: 0.7)]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
                     )
+                    .cornerRadius(8)
                 }
+                .disabled(isSaving)
             }
             
             // Main Category
@@ -1027,30 +1051,6 @@ struct CategoryAndTagsSection: View {
                 }
                 
                 Spacer()
-                
-                if isEditing {
-                    Button(action: saveTags) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "checkmark.circle.fill")
-                            Text("Save")
-                        }
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color(red: 0.4, green: 0.2, blue: 0.6),
-                                    Color(red: 0.5, green: 0.3, blue: 0.7)
-                                ]),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .cornerRadius(8)
-                    }
-                }
             }
         }
         .padding()
@@ -1090,6 +1090,11 @@ struct CategoryAndTagsSection: View {
         .onAppear {
             // Initialize editable subtypes from business data
             editableSubtypes = business.subtypes ?? []
+        }
+        .alert("Tags Updated!", isPresented: $showingSaveAlert) {
+            Button("OK") { }
+        } message: {
+            Text(saveAlertMessage)
         }
     }
     
@@ -1181,7 +1186,13 @@ struct CategoryAndTagsSection: View {
     
     private func saveTags() {
         // Update Firebase with new tags
-        guard let businessId = business.id else { return }
+        guard let businessId = business.id else {
+            saveAlertMessage = "Error: Business ID not found"
+            showingSaveAlert = true
+            return
+        }
+        
+        isSaving = true
         
         FirebaseBusinessService.shared.updateBusinessCategories(
             businessId: businessId,
@@ -1189,13 +1200,20 @@ struct CategoryAndTagsSection: View {
             subtypes: editableSubtypes,
             customTags: [] // Empty since we're storing everything in subtypes
         ) { success in
-            if success {
-                print("✅ Tags updated successfully")
-                isEditing = false
-                // Notify parent to refresh the business
-                onTagsUpdated?(businessId)
-            } else {
-                print("❌ Failed to update tags")
+            DispatchQueue.main.async {
+                self.isSaving = false
+                
+                if success {
+                    self.saveAlertMessage = "Categories and tags saved successfully!"
+                    self.isEditing = false
+                    // Notify parent to refresh the business
+                    self.onTagsUpdated?(businessId)
+                    print("✅ Tags updated successfully")
+                } else {
+                    self.saveAlertMessage = "Failed to save tags. Please try again."
+                    print("❌ Failed to update tags")
+                }
+                self.showingSaveAlert = true
             }
         }
     }
