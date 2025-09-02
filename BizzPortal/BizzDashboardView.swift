@@ -28,6 +28,9 @@ struct BusinessDashboardView: View {
             .ignoresSafeArea()
             
             // Content without navigation bar
+            // In your BusinessDashboardView body, update the ScrollView content:
+            // This shows where to place the new BusinessDetailsSection
+
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 24) {
                     // Dashboard Header
@@ -66,6 +69,10 @@ struct BusinessDashboardView: View {
                     // Analytics Grid
                     AnalyticsGridView(business: business, selectedTimeframe: $selectedTimeframe)
                     
+                    // Business Details Section (NEW - ADDED HERE)
+                    BusinessDetailsSection(business: navigationState.userBusiness ?? business)
+                        .padding(.horizontal)
+                    
                     // Menu Section (if business has menu items)
                     if let menuItems = business.menuItems, !menuItems.isEmpty {
                         MenuSection(business: business)
@@ -100,6 +107,7 @@ struct BusinessDashboardView: View {
                         .padding(.bottom, 100) // Extra padding for bottom navigation
                 }
             }
+            
         }
         .navigationBarHidden(true)
         .fullScreenCover(isPresented: $showCreateOffer) {
@@ -172,18 +180,15 @@ struct BusinessDashboardView: View {
         }
     }
 }
-
-// MARK: - Enhanced Menu Section (EDITABLE)
-struct MenuSection: View {
+// MARK: - Business Details Section (EDITABLE)
+struct BusinessDetailsSection: View {
     let business: FirebaseBusiness
-    @State private var isExpanded = false
     @State private var isEditing = false
-    @State private var menuItems: [MenuItem] = []
+    @State private var businessHours: String = ""
+    @State private var phoneNumber: String = ""
+    @State private var missionStatement: String = ""
     @State private var showingSaveAlert = false
     @State private var saveAlertMessage = ""
-    @State private var selectedMenuItemForImage: MenuItem?
-    @State private var showingMenuItemImagePicker = false
-    @State private var tempMenuItemImage: UIImage?
     @StateObject private var businessService = FirebaseBusinessService.shared
     
     var body: some View {
@@ -191,11 +196,11 @@ struct MenuSection: View {
             // Section Header
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Menu")
+                    Text("Business Details")
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
                     
-                    Text(isEditing ? "Edit your offerings" : "Your offerings")
+                    Text(isEditing ? "Update your information" : "Essential information")
                         .font(.caption)
                         .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
                 }
@@ -206,7 +211,7 @@ struct MenuSection: View {
                     // Edit/Save Button
                     Button(action: {
                         if isEditing {
-                            saveMenuData()
+                            saveDetailsData()
                         } else {
                             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                 isEditing.toggle()
@@ -231,84 +236,230 @@ struct MenuSection: View {
                         )
                         .cornerRadius(8)
                     }
-                    
-                    // Expand/Collapse Button
-                    Button(action: {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                            isExpanded.toggle()
-                        }
-                    }) {
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                            .padding(8)
-                            .background(
-                                Circle()
-                                    .fill(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.1))
-                            )
-                    }
                 }
             }
             
-            if isExpanded {
-                VStack(spacing: 12) {
-                    if isEditing {
-                        // Editable Menu Items
-                        ForEach(Array(menuItems.enumerated()), id: \.offset) { index, _ in
-                            EditableMenuItemRow(
-                                item: $menuItems[index],
-                                index: index,
-                                onDelete: {
-                                    withAnimation {
-                                        if menuItems.indices.contains(index) {
-                                            menuItems.remove(at: index)
-                                        }
-                                    }
-                                },
-                                onImageTap: {
-                                    if menuItems.indices.contains(index) {
-                                        selectedMenuItemForImage = menuItems[index]
-                                        showingMenuItemImagePicker = true
-                                    }
-                                }
+            VStack(spacing: 16) {
+                // Business Hours Card
+                HStack(spacing: 16) {
+                    Image(systemName: "clock.fill")
+                        .font(.title2)
+                        .foregroundColor(.blue)
+                        .frame(width: 40)
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Business Hours")
+                            .font(.caption)
+                            .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
+                        
+                        if isEditing {
+                            TextField("e.g., Mon-Fri 9AM-9PM", text: $businessHours)
+                                .font(.system(size: 16, weight: .medium))
+                                .textFieldStyle(PlainTextFieldStyle())
+                                .padding(8)
+                                .background(Color.gray.opacity(0.05))
+                                .cornerRadius(6)
+                        } else {
+                            Text(businessHours.isEmpty ? "Not set" : businessHours)
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(businessHours.isEmpty ? .gray : Color(red: 0.1, green: 0.1, blue: 0.2))
+                        }
+                    }
+                    
+                    Spacer()
+                }
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(isEditing ? Color.blue.opacity(0.3) : Color.gray.opacity(0.1), lineWidth: 1)
+                        )
+                )
+                
+                // Phone Number Card
+                HStack(spacing: 16) {
+                    Image(systemName: "phone.fill")
+                        .font(.title2)
+                        .foregroundColor(.green)
+                        .frame(width: 40)
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Contact Number")
+                            .font(.caption)
+                            .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
+                        
+                        if isEditing {
+                            TextField("(555) 123-4567", text: $phoneNumber)
+                                .font(.system(size: 16, weight: .medium))
+                                .textFieldStyle(PlainTextFieldStyle())
+                                .keyboardType(.phonePad)
+                                .padding(8)
+                                .background(Color.gray.opacity(0.05))
+                                .cornerRadius(6)
+                        } else {
+                            Text(phoneNumber.isEmpty ? "Not set" : phoneNumber)
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(phoneNumber.isEmpty ? .gray : Color(red: 0.1, green: 0.1, blue: 0.2))
+                        }
+                    }
+                    
+                    Spacer()
+                }
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(isEditing ? Color.green.opacity(0.3) : Color.gray.opacity(0.1), lineWidth: 1)
+                        )
+                )
+                
+                // Mission Statement Card
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "text.quote")
+                            .font(.title2)
+                            .foregroundStyle(
+                                LinearGradient(colors: [Color(red: 0.4, green: 0.2, blue: 0.6), Color(red: 0.5, green: 0.3, blue: 0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
                             )
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Our Mission")
+                                .font(.headline)
+                                .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
+                            Text("What makes your business special")
+                                .font(.caption)
+                                .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
                         }
                         
-                        // Add Menu Item Button
-                        Button(action: {
-                            withAnimation {
-                                menuItems.append(MenuItem(name: "", price: "", description: ""))
-                            }
-                        }) {
-                            HStack {
-                                Image(systemName: "plus.circle.fill")
-                                    .font(.system(size: 20))
-                                Text("Add Menu Item")
-                                    .font(.system(size: 14, weight: .semibold))
-                            }
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [Color(red: 0.4, green: 0.2, blue: 0.6), Color(red: 0.5, green: 0.3, blue: 0.7)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
+                        Spacer()
+                    }
+                    
+                    if isEditing {
+                        TextEditor(text: $missionStatement)
+                            .font(.system(size: 14))
+                            .frame(minHeight: 100)
+                            .padding(8)
+                            .background(Color.gray.opacity(0.05))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.3), lineWidth: 1)
                             )
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.05))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.2), lineWidth: 1)
-                                    )
-                            )
-                        }
                     } else {
-                        // Display-only Menu Items
-                        ForEach(Array(menuItems.enumerated()), id: \.offset) { index, item in
-                            DisplayMenuItemRow(item: item, index: index)
-                        }
+                        Text(missionStatement.isEmpty ? "Tell your story..." : missionStatement)
+                            .font(.system(size: 14))
+                            .foregroundColor(missionStatement.isEmpty ? .gray : Color(red: 0.1, green: 0.1, blue: 0.2))
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.gray.opacity(0.05))
+                            )
+                    }
+                }
+                .padding()
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(isEditing ? Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.3) : Color.gray.opacity(0.1), lineWidth: 1)
+                        )
+                )
+            }
+        }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+        .onAppear {
+            loadBusinessDetails()
+        }
+        .alert("Details Updated!", isPresented: $showingSaveAlert) {
+            Button("OK") { }
+        } message: {
+            Text(saveAlertMessage)
+        }
+    }
+    
+    private func loadBusinessDetails() {
+        // Load existing data from the business object
+        businessHours = business.hours ?? "10AM - 10PM"
+        phoneNumber = business.phone ?? ""
+        missionStatement = business.missionStatement ?? ""
+    }
+    
+    private func saveDetailsData() {
+        guard let businessId = business.id else {
+            saveAlertMessage = "Error: Business ID not found"
+            showingSaveAlert = true
+            return
+        }
+        
+        // Update business details in Firebase
+        businessService.updateBusinessDetails(
+            businessId: businessId,
+            hours: businessHours,
+            phone: phoneNumber,
+            missionStatement: missionStatement
+        ) { success in
+            DispatchQueue.main.async {
+                if success {
+                    self.saveAlertMessage = "Business details saved successfully!"
+                    self.isEditing = false
+                } else {
+                    self.saveAlertMessage = "Failed to save details. Please try again."
+                }
+                self.showingSaveAlert = true
+            }
+        }
+    }
+}
+// MARK: - Menu Section (NEW)
+struct MenuSection: View {
+    let business: FirebaseBusiness
+    @State private var isExpanded = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Section Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Menu")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
+                    
+                    Text("Your offerings")
+                        .font(.caption)
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
+                }
+                
+                Spacer()
+                
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        isExpanded.toggle()
+                    }
+                }) {
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                        .padding(8)
+                        .background(
+                            Circle()
+                                .fill(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.1))
+                        )
+                }
+            }
+            
+            if isExpanded, let menuItems = business.menuItems {
+                VStack(spacing: 12) {
+                    ForEach(Array(menuItems.enumerated()), id: \.offset) { index, item in
+                        MenuItemRow(item: item, index: index)
                     }
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
@@ -318,171 +469,18 @@ struct MenuSection: View {
         .background(Color.white)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
-        .onAppear {
-            loadMenuItems()
-        }
-        .sheet(isPresented: $showingMenuItemImagePicker) {
-            ImagePicker(selectedImage: $tempMenuItemImage) {
-                if let image = tempMenuItemImage,
-                   let index = menuItems.firstIndex(where: { $0.id == selectedMenuItemForImage?.id }) {
-                    menuItems[index].image = image
-                    tempMenuItemImage = nil
-                }
-            }
-        }
-        .alert("Menu Updated!", isPresented: $showingSaveAlert) {
-            Button("OK") { }
-        } message: {
-            Text(saveAlertMessage)
-        }
-    }
-    
-    private func loadMenuItems() {
-        // Convert business menu items to MenuItem objects
-        if let businessMenuItems = business.menuItems {
-            menuItems = businessMenuItems.map { itemData in
-                MenuItem(
-                    name: itemData["name"] ?? "",
-                    price: itemData["price"] ?? "",
-                    description: itemData["description"] ?? "",
-                    image: nil // Images will be loaded separately if needed
-                )
-            }
-        }
-        
-        // If no menu items exist, start with one empty item
-        if menuItems.isEmpty {
-            menuItems.append(MenuItem(name: "", price: "", description: ""))
-        }
-    }
-    
-    private func saveMenuData() {
-        guard let businessId = business.id else {
-            saveAlertMessage = "Error: Business ID not found"
-            showingSaveAlert = true
-            return
-        }
-        
-        // Update menu items in Firebase
-        businessService.updateMenuItemsWithImages(
-            businessId: businessId,
-            menuItems: menuItems
-        ) { success in
-            DispatchQueue.main.async {
-                if success {
-                    self.saveAlertMessage = "Menu saved successfully!"
-                    self.isEditing = false
-                } else {
-                    self.saveAlertMessage = "Failed to save menu. Please try again."
-                }
-                self.showingSaveAlert = true
-            }
-        }
     }
 }
 
-// MARK: - Editable Menu Item Row
-struct EditableMenuItemRow: View {
-    @Binding var item: MenuItem
-    let index: Int
-    let onDelete: () -> Void
-    let onImageTap: () -> Void
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            // Item Number Badge
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.8), Color(red: 0.5, green: 0.3, blue: 0.7).opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 32, height: 32)
-                
-                Text("\(index + 1)")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.white)
-            }
-            
-            // Item Image Button
-            Button(action: onImageTap) {
-                if let image = item.image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 60, height: 60)
-                        .cornerRadius(8)
-                        .clipped()
-                } else {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.gray.opacity(0.1))
-                            .frame(width: 60, height: 60)
-                        
-                        Image(systemName: "photo.badge.plus")
-                            .font(.system(size: 20))
-                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                    }
-                }
-            }
-            
-            // Editable Fields
-            VStack(spacing: 8) {
-                TextField("Item name", text: $item.name)
-                    .font(.system(size: 14, weight: .semibold))
-                    .textFieldStyle(PlainTextFieldStyle())
-                    .padding(8)
-                    .background(Color.gray.opacity(0.05))
-                    .cornerRadius(6)
-                
-                HStack(spacing: 8) {
-                    TextField("$0.00", text: $item.price)
-                        .font(.system(size: 12, weight: .medium))
-                        .textFieldStyle(PlainTextFieldStyle())
-                        .padding(8)
-                        .background(Color.gray.opacity(0.05))
-                        .cornerRadius(6)
-                        .frame(width: 80)
-                        .keyboardType(.decimalPad)
-                    
-                    TextField("Description (optional)", text: $item.description)
-                        .font(.system(size: 12))
-                        .textFieldStyle(PlainTextFieldStyle())
-                        .padding(8)
-                        .background(Color.gray.opacity(0.05))
-                        .cornerRadius(6)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            
-            // Delete Button
-            Button(action: onDelete) {
-                Image(systemName: "trash.fill")
-                    .font(.system(size: 14))
-                    .foregroundColor(.red)
-                    .padding(8)
-                    .background(Color.red.opacity(0.1))
-                    .cornerRadius(6)
-            }
-        }
-        .padding(12)
-        .background(Color.gray.opacity(0.03))
-        .cornerRadius(10)
-    }
-}
-
-// MARK: - Display Menu Item Row
-struct DisplayMenuItemRow: View {
-    let item: MenuItem
+// MARK: - Menu Item Row
+struct MenuItemRow: View {
+    let item: [String: String]
     let index: Int
     
     var body: some View {
         HStack(spacing: 12) {
-            // Item Image or Number
-            if let imageURL = getImageURL(from: item) {
+            // Item Image
+            if let imageURL = item["imageURL"], !imageURL.isEmpty {
                 AsyncImage(url: URL(string: imageURL)) { image in
                     image
                         .resizable()
@@ -517,12 +515,12 @@ struct DisplayMenuItemRow: View {
             
             // Item Details
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.name.isEmpty ? "Menu Item \(index + 1)" : item.name)
+                Text(item["name"] ?? "Menu Item")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
                 
-                if !item.description.isEmpty {
-                    Text(item.description)
+                if let description = item["description"], !description.isEmpty {
+                    Text(description)
                         .font(.system(size: 12))
                         .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
                         .lineLimit(2)
@@ -532,8 +530,8 @@ struct DisplayMenuItemRow: View {
             Spacer()
             
             // Price
-            if !item.price.isEmpty {
-                Text(item.price.hasPrefix("$") ? item.price : "$\(item.price)")
+            if let price = item["price"], !price.isEmpty {
+                Text(price.hasPrefix("$") ? price : "$\(price)")
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(
                         LinearGradient(
@@ -548,14 +546,6 @@ struct DisplayMenuItemRow: View {
         .padding(.horizontal, 12)
         .background(Color.gray.opacity(0.05))
         .cornerRadius(10)
-    }
-    
-    // Helper function to extract imageURL if stored as string
-    private func getImageURL(from item: MenuItem) -> String? {
-        // If the MenuItem has been loaded from Firebase,
-        // we might need to check if there's an imageURL stored
-        // This is a placeholder - adjust based on your actual data structure
-        return nil
     }
 }
 
