@@ -3,6 +3,8 @@
 import SwiftUI
 import MapKit
 
+
+
 struct BusinessDashboardView: View {
     let business: FirebaseBusiness
     @State private var showCreateOffer = false
@@ -14,9 +16,24 @@ struct BusinessDashboardView: View {
     @State private var refreshBusiness = false
     @EnvironmentObject var navigationState: BizzNavigationState
     
+    // Add this function to refresh business data
+    private func refreshBusinessData(businessId: String) {
+        FirebaseBusinessService.shared.getBusinessById(businessId: businessId) { updatedBusiness in
+            if let updatedBusiness = updatedBusiness {
+                // Update the navigation state with refreshed business
+                navigationState.userBusiness = updatedBusiness
+                print("✅ Business data refreshed after update")
+                print("   - Hours: \(updatedBusiness.hours ?? "not set")")
+                print("   - Phone: \(updatedBusiness.phone ?? "not set")")
+                print("   - Mission: \(updatedBusiness.missionStatement?.prefix(50) ?? "not set")...")
+                print("   - Menu Items: \(updatedBusiness.menuItems?.count ?? 0)")
+            }
+        }
+    }
+    
     var body: some View {
         ZStack {
-            // Professional gradient background (restored)
+            // Professional gradient background
             LinearGradient(
                 gradient: Gradient(colors: [
                     Color(red: 0.95, green: 0.95, blue: 0.97),
@@ -27,10 +44,6 @@ struct BusinessDashboardView: View {
             )
             .ignoresSafeArea()
             
-            // Content without navigation bar
-            // In your BusinessDashboardView body, update the ScrollView content:
-            // This shows where to place the new BusinessDetailsSection
-
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 24) {
                     // Dashboard Header
@@ -54,10 +67,10 @@ struct BusinessDashboardView: View {
                         Spacer()
                     }
                     .padding(.horizontal)
-                    .padding(.top, 60) // Account for status bar
+                    .padding(.top, 60)
                     
                     // Quick Stats Overview
-                    QuickStatsRow(business: business)
+                    QuickStatsRow(business: navigationState.userBusiness ?? business)
                     
                     // Active Offers Section
                     ActiveOffersSection(
@@ -67,52 +80,53 @@ struct BusinessDashboardView: View {
                     )
                     
                     // Analytics Grid
-                    AnalyticsGridView(business: business, selectedTimeframe: $selectedTimeframe)
+                    AnalyticsGridView(
+                        business: navigationState.userBusiness ?? business,
+                        selectedTimeframe: $selectedTimeframe
+                    )
                     
-                    // Business Details Section (NEW - ADDED HERE)
-                    BusinessDetailsSection(business: navigationState.userBusiness ?? business)
-                        .padding(.horizontal)
+                    // Business Details Section with refresh callback
+                    BusinessDetailsSection(
+                        business: navigationState.userBusiness ?? business,
+                        onBusinessUpdated: refreshBusinessData
+                    )
+                    .padding(.horizontal)
                     
-                    // Menu Section (if business has menu items)
-                    if let menuItems = business.menuItems, !menuItems.isEmpty {
-                        MenuSection(business: business)
-                            .padding(.horizontal)
-                    }
+                    // Menu Section with refresh callback
+                    MenuSection(
+                        business: navigationState.userBusiness ?? business,
+                        onBusinessUpdated: refreshBusinessData
+                    )
+                    .padding(.horizontal)
                     
                     // Category & Tags Section
                     CategoryAndTagsSection(
                         business: navigationState.userBusiness ?? business,
-                        onTagsUpdated: { updatedBusinessId in
-                            // Reload the business after tags are updated
-                            FirebaseBusinessService.shared.getBusinessById(businessId: updatedBusinessId) { updatedBusiness in
-                                if let updatedBusiness = updatedBusiness {
-                                    navigationState.userBusiness = updatedBusiness
-                                    print("✅ Business refreshed with updated tags")
-                                }
-                            }
-                        }
+                        onTagsUpdated: refreshBusinessData
                     )
                     .padding(.horizontal)
                     
                     // Reviews & Vibes Section
                     HStack(spacing: 16) {
-                        ReviewsCard(business: business)
+                        ReviewsCard(business: navigationState.userBusiness ?? business)
                         VibesCard(isOpen: $vibesDropdownOpen)
                     }
                     .padding(.horizontal)
                     
                     // Location Card
-                    LocationCard(business: business, mapRegion: mapRegion)
-                        .padding(.horizontal)
-                        .padding(.bottom, 100) // Extra padding for bottom navigation
+                    LocationCard(
+                        business: navigationState.userBusiness ?? business,
+                        mapRegion: mapRegion
+                    )
+                    .padding(.horizontal)
+                    .padding(.bottom, 100)
                 }
             }
-            
         }
         .navigationBarHidden(true)
         .fullScreenCover(isPresented: $showCreateOffer) {
             NavigationStack {
-                CreateOfferView(business: business)
+                CreateOfferView(business: navigationState.userBusiness ?? business)
                     .toolbar {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button("Cancel") {
@@ -128,16 +142,23 @@ struct BusinessDashboardView: View {
                 loadBusinessOffers()
             }
             setupMapRegion()
-            print("📊 Dashboard loading for business: \(business.name) with ID: \(business.id ?? "no-id")")
+            
+            // Log current business state
+            let currentBusiness = navigationState.userBusiness ?? business
+            print("📊 Dashboard loading for business: \(currentBusiness.name)")
+            print("   - ID: \(currentBusiness.id ?? "no-id")")
+            print("   - Hours: \(currentBusiness.hours ?? "not set")")
+            print("   - Phone: \(currentBusiness.phone ?? "not set")")
+            print("   - Mission: \(currentBusiness.missionStatement?.prefix(50) ?? "not set")...")
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OfferCreated"))) { _ in
-            // Reload offers when a new one is created
             print("🔄 Reloading offers after creation")
             loadBusinessOffers()
             showCreateOffer = false
         }
     }
     
+    // MARK: - Load Business Offers
     private func loadBusinessOffers() {
         guard let businessId = business.id else {
             print("❌ No business ID available")
@@ -166,6 +187,7 @@ struct BusinessDashboardView: View {
         }
     }
     
+    // MARK: - Setup Map Region
     private func setupMapRegion() {
         if let lat = business.latitude, let lon = business.longitude {
             mapRegion = MKCoordinateRegion(
@@ -180,15 +202,201 @@ struct BusinessDashboardView: View {
         }
     }
 }
-// MARK: - Business Details Section (EDITABLE)
+
+// MARK: - Editable Menu Item Row
+struct EditableMenuItemRow: View {
+    @Binding var item: MenuItem
+    let index: Int
+    let onDelete: () -> Void
+    let onImageTap: () -> Void
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            // Item Number Badge
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.8), Color(red: 0.5, green: 0.3, blue: 0.7).opacity(0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 32, height: 32)
+                
+                Text("\(index + 1)")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            
+            // Item Image Button
+            Button(action: onImageTap) {
+                if let image = item.image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 60, height: 60)
+                        .cornerRadius(8)
+                        .clipped()
+                } else {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.gray.opacity(0.1))
+                            .frame(width: 60, height: 60)
+                        
+                        Image(systemName: "photo.badge.plus")
+                            .font(.system(size: 20))
+                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                    }
+                }
+            }
+            
+            // Editable Fields
+            VStack(spacing: 8) {
+                TextField("Item name", text: $item.name)
+                    .font(.system(size: 14, weight: .semibold))
+                    .textFieldStyle(PlainTextFieldStyle())
+                    .padding(8)
+                    .background(Color.gray.opacity(0.05))
+                    .cornerRadius(6)
+                
+                HStack(spacing: 8) {
+                    TextField("$0.00", text: $item.price)
+                        .font(.system(size: 12, weight: .medium))
+                        .textFieldStyle(PlainTextFieldStyle())
+                        .padding(8)
+                        .background(Color.gray.opacity(0.05))
+                        .cornerRadius(6)
+                        .frame(width: 80)
+                        .keyboardType(.decimalPad)
+                    
+                    TextField("Description (optional)", text: $item.description)
+                        .font(.system(size: 12))
+                        .textFieldStyle(PlainTextFieldStyle())
+                        .padding(8)
+                        .background(Color.gray.opacity(0.05))
+                        .cornerRadius(6)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            
+            // Delete Button
+            Button(action: onDelete) {
+                Image(systemName: "trash.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(.red)
+                    .padding(8)
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(6)
+            }
+        }
+        .padding(12)
+        .background(Color.gray.opacity(0.03))
+        .cornerRadius(10)
+    }
+}
+
+// MARK: - Display Menu Item Row
+struct DisplayMenuItemRow: View {
+    let item: MenuItem
+    let index: Int
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Item Image or Number
+            if let imageURL = getImageURL(from: item) {
+                AsyncImage(url: URL(string: imageURL)) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.gray.opacity(0.2))
+                        .overlay(
+                            Image(systemName: "photo")
+                                .foregroundColor(.gray)
+                        )
+                }
+                .frame(width: 60, height: 60)
+                .cornerRadius(8)
+                .clipped()
+            } else {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.purple.opacity(0.2), Color.pink.opacity(0.2)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 60, height: 60)
+                    .overlay(
+                        Text("\(index + 1)")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.white)
+                    )
+            }
+            
+            // Item Details
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.name.isEmpty ? "Menu Item \(index + 1)" : item.name)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
+                
+                if !item.description.isEmpty {
+                    Text(item.description)
+                        .font(.system(size: 12))
+                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
+                        .lineLimit(2)
+                }
+            }
+            
+            Spacer()
+            
+            // Price
+            if !item.price.isEmpty {
+                Text(item.price.hasPrefix("$") ? item.price : "$\(item.price)")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color(red: 0.4, green: 0.2, blue: 0.6), Color(red: 0.5, green: 0.3, blue: 0.7)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+            }
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(Color.gray.opacity(0.05))
+        .cornerRadius(10)
+    }
+    
+    // Helper function to extract imageURL if stored as string
+    private func getImageURL(from item: MenuItem) -> String? {
+        // If the MenuItem has been loaded from Firebase,
+        // we might need to check if there's an imageURL stored
+        // This is a placeholder - adjust based on your actual data structure
+        return nil
+    }
+}
+
+// Rest of your existing structs continue here...
+// (BusinessDetailsSection, MenuSection, CategoryAndTagsSection, etc.)
+
+
+// MARK: - Enhanced Business Details Section with Working Save
 struct BusinessDetailsSection: View {
     let business: FirebaseBusiness
+    var onBusinessUpdated: ((String) -> Void)? // Callback to refresh business
+    
     @State private var isEditing = false
     @State private var businessHours: String = ""
     @State private var phoneNumber: String = ""
     @State private var missionStatement: String = ""
     @State private var showingSaveAlert = false
     @State private var saveAlertMessage = ""
+    @State private var isSaving = false
     @StateObject private var businessService = FirebaseBusinessService.shared
     
     var body: some View {
@@ -208,6 +416,30 @@ struct BusinessDetailsSection: View {
                 Spacer()
                 
                 HStack(spacing: 12) {
+                    // Cancel button when editing
+                    if isEditing {
+                        Button(action: {
+                            // Reset to original values
+                            loadBusinessDetails()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                isEditing = false
+                            }
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "xmark.circle")
+                                    .font(.system(size: 14))
+                                Text("Cancel")
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
+                            .foregroundColor(.red)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                        .disabled(isSaving)
+                    }
+                    
                     // Edit/Save Button
                     Button(action: {
                         if isEditing {
@@ -219,9 +451,15 @@ struct BusinessDetailsSection: View {
                         }
                     }) {
                         HStack(spacing: 6) {
-                            Image(systemName: isEditing ? "checkmark.circle.fill" : "pencil.circle.fill")
-                                .font(.system(size: 14))
-                            Text(isEditing ? "Save" : "Edit")
+                            if isSaving {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: isEditing ? "checkmark.circle.fill" : "pencil.circle.fill")
+                                    .font(.system(size: 14))
+                            }
+                            Text(isSaving ? "Saving..." : (isEditing ? "Save" : "Edit"))
                                 .font(.system(size: 14, weight: .semibold))
                         }
                         .foregroundColor(.white)
@@ -236,6 +474,7 @@ struct BusinessDetailsSection: View {
                         )
                         .cornerRadius(8)
                     }
+                    .disabled(isSaving)
                 }
             }
             
@@ -379,6 +618,12 @@ struct BusinessDetailsSection: View {
         .onAppear {
             loadBusinessDetails()
         }
+        .onChange(of: business) { _ in
+            // Reload when business changes
+            if !isEditing {
+                loadBusinessDetails()
+            }
+        }
         .alert("Details Updated!", isPresented: $showingSaveAlert) {
             Button("OK") { }
         } message: {
@@ -388,9 +633,14 @@ struct BusinessDetailsSection: View {
     
     private func loadBusinessDetails() {
         // Load existing data from the business object
-        businessHours = business.hours ?? "10AM - 10PM"
+        businessHours = business.hours ?? ""
         phoneNumber = business.phone ?? ""
         missionStatement = business.missionStatement ?? ""
+        
+        print("📋 Loaded business details:")
+        print("   - Hours: \(businessHours)")
+        print("   - Phone: \(phoneNumber)")
+        print("   - Mission: \(missionStatement.prefix(50))...")
     }
     
     private func saveDetailsData() {
@@ -400,6 +650,8 @@ struct BusinessDetailsSection: View {
             return
         }
         
+        isSaving = true
+        
         // Update business details in Firebase
         businessService.updateBusinessDetails(
             businessId: businessId,
@@ -408,21 +660,41 @@ struct BusinessDetailsSection: View {
             missionStatement: missionStatement
         ) { success in
             DispatchQueue.main.async {
+                self.isSaving = false
+                
                 if success {
                     self.saveAlertMessage = "Business details saved successfully!"
                     self.isEditing = false
+                    
+                    // Trigger refresh of business data
+                    self.onBusinessUpdated?(businessId)
+                    
+                    print("✅ Business details saved successfully")
                 } else {
                     self.saveAlertMessage = "Failed to save details. Please try again."
+                    print("❌ Failed to save business details")
                 }
                 self.showingSaveAlert = true
             }
         }
     }
 }
-// MARK: - Menu Section (NEW)
+
+// MARK: - Enhanced Menu Section with Working Save
 struct MenuSection: View {
     let business: FirebaseBusiness
+    var onBusinessUpdated: ((String) -> Void)? // Callback to refresh business
+    
     @State private var isExpanded = false
+    @State private var isEditing = false
+    @State private var menuItems: [MenuItem] = []
+    @State private var showingSaveAlert = false
+    @State private var saveAlertMessage = ""
+    @State private var selectedMenuItemForImage: MenuItem?
+    @State private var showingMenuItemImagePicker = false
+    @State private var tempMenuItemImage: UIImage?
+    @State private var isSaving = false
+    @StateObject private var businessService = FirebaseBusinessService.shared
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -433,33 +705,159 @@ struct MenuSection: View {
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
                     
-                    Text("Your offerings")
+                    Text(isEditing ? "Edit your offerings" : "Your offerings")
                         .font(.caption)
                         .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
                 }
                 
                 Spacer()
                 
-                Button(action: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                        isExpanded.toggle()
+                HStack(spacing: 12) {
+                    // Cancel button when editing
+                    if isEditing {
+                        Button(action: {
+                            // Reset to original values
+                            loadMenuItems()
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                isEditing = false
+                            }
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "xmark.circle")
+                                    .font(.system(size: 14))
+                                Text("Cancel")
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
+                            .foregroundColor(.red)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                        .disabled(isSaving)
                     }
-                }) {
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-                        .padding(8)
+                    
+                    // Edit/Save Button
+                    Button(action: {
+                        if isEditing {
+                            saveMenuData()
+                        } else {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                isEditing.toggle()
+                            }
+                        }
+                    }) {
+                        HStack(spacing: 6) {
+                            if isSaving {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: isEditing ? "checkmark.circle.fill" : "pencil.circle.fill")
+                                    .font(.system(size: 14))
+                            }
+                            Text(isSaving ? "Saving..." : (isEditing ? "Save" : "Edit"))
+                                .font(.system(size: 14, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
                         .background(
-                            Circle()
-                                .fill(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.1))
+                            LinearGradient(
+                                gradient: Gradient(colors: isEditing ? [.green, .teal] : [Color(red: 0.4, green: 0.2, blue: 0.6), Color(red: 0.5, green: 0.3, blue: 0.7)]),
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
                         )
+                        .cornerRadius(8)
+                    }
+                    .disabled(isSaving)
+                    
+                    // Expand/Collapse Button
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            isExpanded.toggle()
+                        }
+                    }) {
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                            .padding(8)
+                            .background(
+                                Circle()
+                                    .fill(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.1))
+                            )
+                    }
                 }
             }
             
-            if isExpanded, let menuItems = business.menuItems {
+            if isExpanded {
                 VStack(spacing: 12) {
-                    ForEach(Array(menuItems.enumerated()), id: \.offset) { index, item in
-                        MenuItemRow(item: item, index: index)
+                    if isEditing {
+                        // Editable Menu Items
+                        ForEach(Array(menuItems.enumerated()), id: \.offset) { index, _ in
+                            EditableMenuItemRow(
+                                item: $menuItems[index],
+                                index: index,
+                                onDelete: {
+                                    withAnimation {
+                                        if menuItems.indices.contains(index) {
+                                            menuItems.remove(at: index)
+                                        }
+                                    }
+                                },
+                                onImageTap: {
+                                    if menuItems.indices.contains(index) {
+                                        selectedMenuItemForImage = menuItems[index]
+                                        showingMenuItemImagePicker = true
+                                    }
+                                }
+                            )
+                        }
+                        
+                        // Add Menu Item Button
+                        Button(action: {
+                            withAnimation {
+                                menuItems.append(MenuItem(name: "", price: "", description: ""))
+                            }
+                        }) {
+                            HStack {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 20))
+                                Text("Add Menu Item")
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [Color(red: 0.4, green: 0.2, blue: 0.6), Color(red: 0.5, green: 0.3, blue: 0.7)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.05))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color(red: 0.4, green: 0.2, blue: 0.6).opacity(0.2), lineWidth: 1)
+                                    )
+                            )
+                        }
+                    } else {
+                        // Display-only Menu Items
+                        if menuItems.isEmpty {
+                            Text("No menu items added yet")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            ForEach(Array(menuItems.enumerated()), id: \.offset) { index, item in
+                                DisplayMenuItemRow(item: item, index: index)
+                            }
+                        }
                     }
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
@@ -469,83 +867,87 @@ struct MenuSection: View {
         .background(Color.white)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
-    }
-}
-
-// MARK: - Menu Item Row
-struct MenuItemRow: View {
-    let item: [String: String]
-    let index: Int
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            // Item Image
-            if let imageURL = item["imageURL"], !imageURL.isEmpty {
-                AsyncImage(url: URL(string: imageURL)) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.gray.opacity(0.2))
-                        .overlay(
-                            Image(systemName: "photo")
-                                .foregroundColor(.gray)
-                        )
-                }
-                .frame(width: 60, height: 60)
-                .cornerRadius(8)
-                .clipped()
-            } else {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.purple.opacity(0.2), Color.pink.opacity(0.2)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 60, height: 60)
-                    .overlay(
-                        Text("\(index + 1)")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(.white)
-                    )
-            }
-            
-            // Item Details
-            VStack(alignment: .leading, spacing: 4) {
-                Text(item["name"] ?? "Menu Item")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
-                
-                if let description = item["description"], !description.isEmpty {
-                    Text(description)
-                        .font(.system(size: 12))
-                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
-                        .lineLimit(2)
-                }
-            }
-            
-            Spacer()
-            
-            // Price
-            if let price = item["price"], !price.isEmpty {
-                Text(price.hasPrefix("$") ? price : "$\(price)")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color(red: 0.4, green: 0.2, blue: 0.6), Color(red: 0.5, green: 0.3, blue: 0.7)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
+        .onAppear {
+            loadMenuItems()
+        }
+        .onChange(of: business) { _ in
+            // Reload when business changes
+            if !isEditing {
+                loadMenuItems()
             }
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
-        .background(Color.gray.opacity(0.05))
-        .cornerRadius(10)
+        .sheet(isPresented: $showingMenuItemImagePicker) {
+            ImagePicker(selectedImage: $tempMenuItemImage) {
+                if let image = tempMenuItemImage,
+                   let index = menuItems.firstIndex(where: { $0.id == selectedMenuItemForImage?.id }) {
+                    menuItems[index].image = image
+                    tempMenuItemImage = nil
+                }
+            }
+        }
+        .alert("Menu Updated!", isPresented: $showingSaveAlert) {
+            Button("OK") { }
+        } message: {
+            Text(saveAlertMessage)
+        }
+    }
+    
+    private func loadMenuItems() {
+        // Convert business menu items to MenuItem objects
+        if let businessMenuItems = business.menuItems {
+            menuItems = businessMenuItems.map { itemData in
+                MenuItem(
+                    name: itemData["name"] ?? "",
+                    price: itemData["price"] ?? "",
+                    description: itemData["description"] ?? "",
+                    image: nil // Images will be loaded separately if needed
+                )
+            }
+            
+            print("📋 Loaded \(menuItems.count) menu items")
+        }
+        
+        // If no menu items exist, start with one empty item
+        if menuItems.isEmpty {
+            menuItems.append(MenuItem(name: "", price: "", description: ""))
+        }
+    }
+    
+    private func saveMenuData() {
+        guard let businessId = business.id else {
+            saveAlertMessage = "Error: Business ID not found"
+            showingSaveAlert = true
+            return
+        }
+        
+        isSaving = true
+        
+        // Filter out empty menu items before saving
+        let validMenuItems = menuItems.filter { !$0.name.isEmpty }
+        
+        // Update menu items in Firebase
+        businessService.updateMenuItemsWithImages(
+            businessId: businessId,
+            menuItems: validMenuItems
+        ) { success in
+            DispatchQueue.main.async {
+                self.isSaving = false
+                
+                if success {
+                    self.saveAlertMessage = "Menu saved successfully!"
+                    self.isEditing = false
+                    
+                    // Trigger refresh of business data
+                    self.onBusinessUpdated?(businessId)
+                    
+                    print("✅ Menu saved with \(validMenuItems.count) items")
+                } else {
+                    self.saveAlertMessage = "Failed to save menu. Please try again."
+                    print("❌ Failed to save menu")
+                }
+                self.showingSaveAlert = true
+            }
+        }
     }
 }
 
