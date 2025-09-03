@@ -3,7 +3,6 @@
 import SwiftUI
 import MapKit
 
-
 struct BusinessDashboardView: View {
     let business: FirebaseBusiness
     @State private var showCreateOffer = false
@@ -13,19 +12,24 @@ struct BusinessDashboardView: View {
     @State private var vibesDropdownOpen = false
     @State private var selectedTimeframe = "This Week"
     @State private var refreshBusiness = false
+    @State private var hasInitialized = false
     @EnvironmentObject var navigationState: BizzNavigationState
     
-    // Add this function to refresh business data
+    // Simplified refresh function to prevent loops
     private func refreshBusinessData(businessId: String) {
+        // Only update if actually needed
+        if navigationState.userBusiness?.id == businessId {
+            print("✅ Business already up to date, skipping refresh")
+            return
+        }
+        
         FirebaseBusinessService.shared.getBusinessById(businessId: businessId) { updatedBusiness in
             if let updatedBusiness = updatedBusiness {
-                // Update the navigation state with refreshed business
-                navigationState.userBusiness = updatedBusiness
-                print("✅ Business data refreshed after update")
-                print("   - Hours: \(updatedBusiness.hours ?? "not set")")
-                print("   - Phone: \(updatedBusiness.phone ?? "not set")")
-                print("   - Mission: \(updatedBusiness.missionStatement?.prefix(50) ?? "not set")...")
-                print("   - Menu Items: \(updatedBusiness.menuItems?.count ?? 0)")
+                // Only update if there are actual changes
+                if navigationState.userBusiness != updatedBusiness {
+                    navigationState.userBusiness = updatedBusiness
+                    print("✅ Business data refreshed after update")
+                }
             }
         }
     }
@@ -137,18 +141,16 @@ struct BusinessDashboardView: View {
             }
         }
         .onAppear {
-            if businessOffers.isEmpty {
+            // Only initialize once
+            if !hasInitialized {
                 loadBusinessOffers()
+                setupMapRegion()
+                hasInitialized = true
+                
+                // Log current business state
+                let currentBusiness = navigationState.userBusiness ?? business
+                print("📊 Dashboard initialized for business: \(currentBusiness.name)")
             }
-            setupMapRegion()
-            
-            // Log current business state
-            let currentBusiness = navigationState.userBusiness ?? business
-            print("📊 Dashboard loading for business: \(currentBusiness.name)")
-            print("   - ID: \(currentBusiness.id ?? "no-id")")
-            print("   - Hours: \(currentBusiness.hours ?? "not set")")
-            print("   - Phone: \(currentBusiness.phone ?? "not set")")
-            print("   - Mission: \(currentBusiness.missionStatement?.prefix(50) ?? "not set")...")
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OfferCreated"))) { _ in
             print("🔄 Reloading offers after creation")
@@ -172,16 +174,6 @@ struct BusinessDashboardView: View {
                 self.businessOffers = offers
                 self.loadingOffers = false
                 print("✅ Loaded \(offers.count) offers for business \(businessId)")
-                
-                // Debug print each offer
-                for (index, offer) in offers.enumerated() {
-                    print("  Offer \(index + 1):")
-                    print("    - ID: \(offer.id ?? "no-id")")
-                    print("    - Title: \(offer.title)")
-                    print("    - Description: \(offer.description)")
-                    print("    - BusinessId: \(offer.businessId)")
-                    print("    - Active: \(offer.isActive), Expired: \(offer.isExpired)")
-                }
             }
         }
     }
@@ -380,10 +372,10 @@ struct DisplayMenuItemRow: View {
     }
 }
 
-// MARK: - Enhanced Business Details Section with Working Save
+// MARK: - Enhanced Business Details Section (FIXED)
 struct BusinessDetailsSection: View {
     let business: FirebaseBusiness
-    var onBusinessUpdated: ((String) -> Void)? // Callback to refresh business
+    var onBusinessUpdated: ((String) -> Void)?
     
     @State private var isEditing = false
     @State private var businessHours: String = ""
@@ -392,6 +384,7 @@ struct BusinessDetailsSection: View {
     @State private var showingSaveAlert = false
     @State private var saveAlertMessage = ""
     @State private var isSaving = false
+    @State private var hasLoadedInitialData = false
     @StateObject private var businessService = FirebaseBusinessService.shared
     
     var body: some View {
@@ -411,7 +404,6 @@ struct BusinessDetailsSection: View {
                 Spacer()
                 
                 HStack(spacing: 12) {
-                    // Edit/Save Button
                     Button(action: {
                         if isEditing {
                             saveDetailsData()
@@ -587,14 +579,13 @@ struct BusinessDetailsSection: View {
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
         .onAppear {
-            loadBusinessDetails()
-        }
-        .onChange(of: business) { _ in
-            // Reload when business changes
-            if !isEditing {
+            // Only load once on initial appear
+            if !hasLoadedInitialData {
                 loadBusinessDetails()
+                hasLoadedInitialData = true
             }
         }
+        // REMOVED onChange handler that was causing infinite loop
         .alert("Details Updated!", isPresented: $showingSaveAlert) {
             Button("OK") { }
         } message: {
@@ -603,7 +594,6 @@ struct BusinessDetailsSection: View {
     }
     
     private func loadBusinessDetails() {
-        // Load existing data from the business object
         businessHours = business.hours ?? ""
         phoneNumber = business.phone ?? ""
         missionStatement = business.missionStatement ?? ""
@@ -623,7 +613,6 @@ struct BusinessDetailsSection: View {
         
         isSaving = true
         
-        // Update business details in Firebase
         businessService.updateBusinessDetails(
             businessId: businessId,
             hours: businessHours,
@@ -636,10 +625,7 @@ struct BusinessDetailsSection: View {
                 if success {
                     self.saveAlertMessage = "Business details saved successfully!"
                     self.isEditing = false
-                    
-                    // Trigger refresh of business data
                     self.onBusinessUpdated?(businessId)
-                    
                     print("✅ Business details saved successfully")
                 } else {
                     self.saveAlertMessage = "Failed to save details. Please try again."
@@ -651,10 +637,10 @@ struct BusinessDetailsSection: View {
     }
 }
 
-// MARK: - Enhanced Menu Section with Working Save
+// MARK: - Enhanced Menu Section (FIXED)
 struct MenuSection: View {
     let business: FirebaseBusiness
-    var onBusinessUpdated: ((String) -> Void)? // Callback to refresh business
+    var onBusinessUpdated: ((String) -> Void)?
     
     @State private var isExpanded = false
     @State private var isEditing = false
@@ -665,6 +651,7 @@ struct MenuSection: View {
     @State private var showingMenuItemImagePicker = false
     @State private var tempMenuItemImage: UIImage?
     @State private var isSaving = false
+    @State private var hasLoadedInitialData = false
     @StateObject private var businessService = FirebaseBusinessService.shared
     
     var body: some View {
@@ -684,7 +671,6 @@ struct MenuSection: View {
                 Spacer()
                 
                 HStack(spacing: 12) {
-                    // Edit/Save Button
                     Button(action: {
                         if isEditing {
                             saveMenuData()
@@ -720,7 +706,6 @@ struct MenuSection: View {
                     }
                     .disabled(isSaving)
                     
-                    // Expand/Collapse Button
                     Button(action: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             isExpanded.toggle()
@@ -741,7 +726,6 @@ struct MenuSection: View {
             if isExpanded {
                 VStack(spacing: 12) {
                     if isEditing {
-                        // Editable Menu Items
                         ForEach(Array(menuItems.enumerated()), id: \.offset) { index, _ in
                             EditableMenuItemRow(
                                 item: $menuItems[index],
@@ -762,7 +746,6 @@ struct MenuSection: View {
                             )
                         }
                         
-                        // Add Menu Item Button
                         Button(action: {
                             withAnimation {
                                 menuItems.append(MenuItem(name: "", price: "", description: ""))
@@ -793,7 +776,6 @@ struct MenuSection: View {
                             )
                         }
                     } else {
-                        // Display-only Menu Items
                         if menuItems.isEmpty {
                             Text("No menu items added yet")
                                 .font(.subheadline)
@@ -815,14 +797,13 @@ struct MenuSection: View {
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
         .onAppear {
-            loadMenuItems()
-        }
-        .onChange(of: business) { _ in
-            // Reload when business changes
-            if !isEditing {
+            // Only load once on initial appear
+            if !hasLoadedInitialData {
                 loadMenuItems()
+                hasLoadedInitialData = true
             }
         }
+        // REMOVED onChange handler that was causing infinite loop
         .sheet(isPresented: $showingMenuItemImagePicker) {
             ImagePicker(selectedImage: $tempMenuItemImage) {
                 if let image = tempMenuItemImage,
@@ -840,21 +821,18 @@ struct MenuSection: View {
     }
     
     private func loadMenuItems() {
-        // Convert business menu items to MenuItem objects
         if let businessMenuItems = business.menuItems {
             menuItems = businessMenuItems.map { itemData in
                 MenuItem(
                     name: itemData["name"] ?? "",
                     price: itemData["price"] ?? "",
                     description: itemData["description"] ?? "",
-                    image: nil // Images will be loaded separately if needed
+                    image: nil
                 )
             }
-            
             print("📋 Loaded \(menuItems.count) menu items")
         }
         
-        // If no menu items exist, start with one empty item
         if menuItems.isEmpty {
             menuItems.append(MenuItem(name: "", price: "", description: ""))
         }
@@ -869,10 +847,8 @@ struct MenuSection: View {
         
         isSaving = true
         
-        // Filter out empty menu items before saving
         let validMenuItems = menuItems.filter { !$0.name.isEmpty }
         
-        // Update menu items in Firebase
         businessService.updateMenuItemsWithImages(
             businessId: businessId,
             menuItems: validMenuItems
@@ -883,10 +859,7 @@ struct MenuSection: View {
                 if success {
                     self.saveAlertMessage = "Menu saved successfully!"
                     self.isEditing = false
-                    
-                    // Trigger refresh of business data
                     self.onBusinessUpdated?(businessId)
-                    
                     print("✅ Menu saved with \(validMenuItems.count) items")
                 } else {
                     self.saveAlertMessage = "Failed to save menu. Please try again."
@@ -897,7 +870,8 @@ struct MenuSection: View {
         }
     }
 }
-// MARK: - Category & Tags Section (Updated with Save Button)
+
+// MARK: - Category & Tags Section (FIXED)
 struct CategoryAndTagsSection: View {
     let business: FirebaseBusiness
     var onTagsUpdated: ((String) -> Void)?
@@ -908,6 +882,7 @@ struct CategoryAndTagsSection: View {
     @State private var isSaving = false
     @State private var showingSaveAlert = false
     @State private var saveAlertMessage = ""
+    @State private var hasLoadedInitialData = false
     @FocusState private var isTextFieldFocused: Bool
     
     var body: some View {
@@ -926,7 +901,6 @@ struct CategoryAndTagsSection: View {
                 
                 Spacer()
                 
-                // Edit/Save Button (matching other sections)
                 Button(action: {
                     if isEditing {
                         saveTags()
@@ -1003,7 +977,6 @@ struct CategoryAndTagsSection: View {
                     .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
                 
                 DashboardFlowLayout(spacing: 8) {
-                    // All subtypes (including custom tags)
                     ForEach(editableSubtypes, id: \.self) { subtype in
                         TagChip(
                             text: subtype,
@@ -1017,7 +990,6 @@ struct CategoryAndTagsSection: View {
                         )
                     }
                     
-                    // Add new tag field
                     if isEditing {
                         AddTagField(
                             newTag: $newTag,
@@ -1062,7 +1034,6 @@ struct CategoryAndTagsSection: View {
                 currentCategory: business.mainCategory ?? business.category,
                 currentSubtypes: editableSubtypes,
                 onCategorySelected: { newCategory, newSubtypes in
-                    // Update both category and subtypes
                     editableSubtypes = newSubtypes
                     
                     guard let businessId = business.id else { return }
@@ -1075,10 +1046,7 @@ struct CategoryAndTagsSection: View {
                     ) { success in
                         if success {
                             print("✅ Categories updated successfully")
-                            print("   - Main Category: \(newCategory)")
-                            print("   - Subtypes: \(newSubtypes)")
                             showingCategoryEditor = false
-                            // Notify parent to refresh the business
                             onTagsUpdated?(businessId)
                         } else {
                             print("❌ Failed to update categories")
@@ -1088,8 +1056,11 @@ struct CategoryAndTagsSection: View {
             )
         }
         .onAppear {
-            // Initialize editable subtypes from business data
-            editableSubtypes = business.subtypes ?? []
+            // Initialize only once
+            if !hasLoadedInitialData {
+                editableSubtypes = business.subtypes ?? []
+                hasLoadedInitialData = true
+            }
         }
         .alert("Tags Updated!", isPresented: $showingSaveAlert) {
             Button("OK") { }
@@ -1109,7 +1080,6 @@ struct CategoryAndTagsSection: View {
     }
     
     private func getCategorySubtypes(for category: String) -> [String] {
-        // Define the standard subtypes for each category
         switch category.lowercased() {
         case "restaurant", "food & dining":
             return ["Restaurant", "Cafe", "Bakery", "Bar & Grill", "Fast Food", "Fine Dining", "Food Truck", "Catering", "Juice Bar", "Ice Cream Shop"]
@@ -1160,20 +1130,6 @@ struct CategoryAndTagsSection: View {
         }
     }
     
-    private func isTagInAnyCategory(_ tag: String) -> Bool {
-        let allCategories = ["restaurant", "food & dining", "cafe", "retail", "retail & shopping",
-                            "fitness", "health & wellness", "business & professional",
-                            "technology & innovation", "medicine & healthcare",
-                            "entertainment & leisure", "beauty"]
-        
-        for category in allCategories {
-            if getCategorySubtypes(for: category).contains(tag) {
-                return true
-            }
-        }
-        return false
-    }
-    
     private func addNewTag() {
         let trimmedTag = newTag.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedTag.isEmpty && !editableSubtypes.contains(trimmedTag) {
@@ -1185,7 +1141,6 @@ struct CategoryAndTagsSection: View {
     }
     
     private func saveTags() {
-        // Update Firebase with new tags
         guard let businessId = business.id else {
             saveAlertMessage = "Error: Business ID not found"
             showingSaveAlert = true
@@ -1198,7 +1153,7 @@ struct CategoryAndTagsSection: View {
             businessId: businessId,
             mainCategory: business.mainCategory ?? business.category,
             subtypes: editableSubtypes,
-            customTags: [] // Empty since we're storing everything in subtypes
+            customTags: []
         ) { success in
             DispatchQueue.main.async {
                 self.isSaving = false
@@ -1206,7 +1161,6 @@ struct CategoryAndTagsSection: View {
                 if success {
                     self.saveAlertMessage = "Categories and tags saved successfully!"
                     self.isEditing = false
-                    // Notify parent to refresh the business
                     self.onTagsUpdated?(businessId)
                     print("✅ Tags updated successfully")
                 } else {
@@ -1310,44 +1264,6 @@ struct AddTagField: View {
                 .stroke(Color.orange.opacity(0.3), lineWidth: 1)
         )
         .cornerRadius(15)
-    }
-}
-
-// MARK: - Professional Navigation Bar
-struct ProfessionalNavigationBar: View {
-    let businessName: String
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Dashboard")
-                        .font(.caption2)
-                        .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
-                        .textCase(.uppercase)
-                        .tracking(0.5)
-                    
-                    Text(businessName)
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
-                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
-                        .lineLimit(1)
-                }
-                
-                Spacer()
-                
-                // Simple icon without menu
-                Image(systemName: "storefront.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 50)
-            .padding(.bottom, 12)
-            
-            Divider()
-                .background(Color(red: 0.9, green: 0.9, blue: 0.92))
-        }
-        .background(Color.white)
     }
 }
 
@@ -1949,47 +1865,6 @@ struct LocationCard: View {
     }
 }
 
-// MARK: - Supporting Views
-struct StatItem: View {
-    let icon: String
-    let value: String
-    let label: String
-    let color: Color
-    
-    var body: some View {
-        VStack(spacing: 4) {
-            Image(systemName: icon)
-                .foregroundColor(color)
-                .font(.title2)
-            Text(value)
-                .font(.headline)
-                .fontWeight(.bold)
-                .foregroundColor(.black)
-            Text(label)
-                .font(.caption)
-                .foregroundColor(.gray)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-// MARK: - Business Dashboard Background (for compatibility)
-struct BusinessDashboardBackground: View {
-    var body: some View {
-        LinearGradient(
-            gradient: Gradient(colors: [
-                Color.green.opacity(0.3),
-                Color.teal.opacity(0.4),
-                Color.blue.opacity(0.3)
-            ]),
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-        .ignoresSafeArea()
-    }
-}
-
 // MARK: - Category Editor Modal
 struct CategoryEditorModal: View {
     let currentCategory: String
@@ -2058,7 +1933,7 @@ struct CategoryEditorModal: View {
     var body: some View {
         NavigationView {
             ZStack {
-                // Background matching tag selector
+                // Background matching app style
                 LinearGradient(
                     gradient: Gradient(colors: [
                         Color.blue.opacity(0.05),
@@ -2484,7 +2359,7 @@ struct CustomTagsSection: View {
     }
 }
 
-// MARK: - Dashboard Flow Layout (renamed to avoid conflict)
+// MARK: - Dashboard Flow Layout
 struct DashboardFlowLayout: Layout {
     var spacing: CGFloat = 8
     
