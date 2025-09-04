@@ -5,7 +5,6 @@ import SwiftUI
 // MARK: - Menu Section
 struct MenuSection: View {
     let business: FirebaseBusiness
-    var onBusinessUpdated: ((String) -> Void)?
     
     @State private var isExpanded = false
     @State private var isEditing = false
@@ -223,7 +222,7 @@ struct MenuSection: View {
                 if success {
                     self.saveAlertMessage = "Menu saved successfully!"
                     self.isEditing = false
-                    self.onBusinessUpdated?(businessId)
+                    // Don't trigger refresh - just keep local state
                     print("✅ Menu saved with \(validMenuItems.count) items")
                 } else {
                     self.saveAlertMessage = "Failed to save menu. Please try again."

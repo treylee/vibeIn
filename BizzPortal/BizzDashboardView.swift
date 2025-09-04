@@ -11,28 +11,8 @@ struct BusinessDashboardView: View {
     @State private var mapRegion = MKCoordinateRegion()
     @State private var vibesDropdownOpen = false
     @State private var selectedTimeframe = "This Week"
-    @State private var refreshBusiness = false
     @State private var hasInitialized = false
     @EnvironmentObject var navigationState: BizzNavigationState
-    
-    // Simplified refresh function to prevent loops
-    private func refreshBusinessData(businessId: String) {
-        // Only update if actually needed
-        if navigationState.userBusiness?.id == businessId {
-            print("✅ Business already up to date, skipping refresh")
-            return
-        }
-        
-        FirebaseBusinessService.shared.getBusinessById(businessId: businessId) { updatedBusiness in
-            if let updatedBusiness = updatedBusiness {
-                // Only update if there are actual changes
-                if navigationState.userBusiness != updatedBusiness {
-                    navigationState.userBusiness = updatedBusiness
-                    print("✅ Business data refreshed after update")
-                }
-            }
-        }
-    }
     
     var body: some View {
         ZStack {
@@ -88,24 +68,21 @@ struct BusinessDashboardView: View {
                         selectedTimeframe: $selectedTimeframe
                     )
                     
-                    // Business Details Section with refresh callback
+                    // Business Details Section without refresh callback
                     BusinessDetailsSection(
-                        business: navigationState.userBusiness ?? business,
-                        onBusinessUpdated: refreshBusinessData
+                        business: navigationState.userBusiness ?? business
                     )
                     .padding(.horizontal)
                     
-                    // Menu Section with refresh callback
+                    // Menu Section without refresh callback
                     MenuSection(
-                        business: navigationState.userBusiness ?? business,
-                        onBusinessUpdated: refreshBusinessData
+                        business: navigationState.userBusiness ?? business
                     )
                     .padding(.horizontal)
                     
-                    // Category & Tags Section
+                    // Category & Tags Section without refresh callback
                     CategoryAndTagsSection(
-                        business: navigationState.userBusiness ?? business,
-                        onTagsUpdated: refreshBusinessData
+                        business: navigationState.userBusiness ?? business
                     )
                     .padding(.horizontal)
                     

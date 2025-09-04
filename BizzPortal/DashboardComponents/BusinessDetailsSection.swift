@@ -4,7 +4,6 @@ import SwiftUI
 
 struct BusinessDetailsSection: View {
     let business: FirebaseBusiness
-    var onBusinessUpdated: ((String) -> Void)?
     
     @State private var isEditing = false
     @State private var businessHours: String = ""
@@ -253,7 +252,7 @@ struct BusinessDetailsSection: View {
                 if success {
                     self.saveAlertMessage = "Business details saved successfully!"
                     self.isEditing = false
-                    self.onBusinessUpdated?(businessId)
+                    // Don't trigger refresh - just keep local state
                     print("✅ Business details saved successfully")
                 } else {
                     self.saveAlertMessage = "Failed to save details. Please try again."
@@ -264,4 +263,3 @@ struct BusinessDetailsSection: View {
         }
     }
 }
-

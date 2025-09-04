@@ -8,6 +8,7 @@ struct BizzPortalViewRegistered: View {
     @State private var userBusiness: FirebaseBusiness?
     @State private var businessOffers: [FirebaseOffer] = []
     @State private var loadingOffers = false
+    @State private var hasInitialized = false
     @EnvironmentObject var navigationState: BizzNavigationState
     
     var body: some View {
@@ -26,8 +27,8 @@ struct BizzPortalViewRegistered: View {
                     }
                     .padding(.top, 60)
                     
-                    // Current Offers Section
-                    if let business = userBusiness {
+                    // Current Offers Section - Use navigationState.userBusiness or local userBusiness
+                    if let business = navigationState.userBusiness ?? userBusiness {
                         CurrentOffersSection(
                             businessOffers: businessOffers,
                             loadingOffers: loadingOffers
@@ -35,7 +36,7 @@ struct BizzPortalViewRegistered: View {
                     }
                     
                     // Business Dashboard Section for registered users
-                    if let business = userBusiness {
+                    if let business = navigationState.userBusiness ?? userBusiness {
                         VStack(spacing: 20) {
                             BusinessCard(business: business)
                             
@@ -60,8 +61,17 @@ struct BizzPortalViewRegistered: View {
         }
         .navigationBarHidden(true)
         .onAppear {
-            loadUserBusiness()
-            loadBusinessOffers()
+            // Only initialize once
+            if !hasInitialized {
+                // Only load if navigationState doesn't have business
+                if navigationState.userBusiness == nil {
+                    loadUserBusiness()
+                } else {
+                    userBusiness = navigationState.userBusiness
+                }
+                loadBusinessOffers()
+                hasInitialized = true
+            }
         }
     }
     
@@ -73,8 +83,15 @@ struct BizzPortalViewRegistered: View {
         }
         
         userService.getUserBusiness { business in
-            self.userBusiness = business
-            print("🏢 BizzPortalRegistered: Business loaded - \(business?.name ?? "nil")")
+            // Only update if different
+            if self.userBusiness?.id != business?.id {
+                self.userBusiness = business
+                // Update navigation state if needed
+                if self.navigationState.userBusiness == nil {
+                    self.navigationState.userBusiness = business
+                }
+                print("🏢 BizzPortalRegistered: Business loaded - \(business?.name ?? "nil")")
+            }
         }
     }
     

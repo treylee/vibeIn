@@ -5,7 +5,7 @@ import SwiftUI
 // MARK: - Category & Tags Section
 struct CategoryAndTagsSection: View {
     let business: FirebaseBusiness
-    var onTagsUpdated: ((String) -> Void)?
+    
     @State private var isEditing = false
     @State private var newTag = ""
     @State private var editableSubtypes: [String] = []
@@ -178,7 +178,7 @@ struct CategoryAndTagsSection: View {
                         if success {
                             print("✅ Categories updated successfully")
                             showingCategoryEditor = false
-                            onTagsUpdated?(businessId)
+                            // Don't trigger refresh - just keep local state
                         } else {
                             print("❌ Failed to update categories")
                         }
@@ -292,7 +292,7 @@ struct CategoryAndTagsSection: View {
                 if success {
                     self.saveAlertMessage = "Categories and tags saved successfully!"
                     self.isEditing = false
-                    self.onTagsUpdated?(businessId)
+                    // Don't trigger refresh - just keep local state
                     print("✅ Tags updated successfully")
                 } else {
                     self.saveAlertMessage = "Failed to save tags. Please try again."

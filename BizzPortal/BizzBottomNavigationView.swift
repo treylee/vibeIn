@@ -8,6 +8,7 @@ struct BizzNavigationContainer: View {
     @StateObject private var navigationState = BizzNavigationState()
     @StateObject private var userService = FirebaseUserService.shared
     @StateObject private var businessService = FirebaseBusinessService.shared
+    @State private var hasInitialized = false
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -43,8 +44,12 @@ struct BizzNavigationContainer: View {
         }
         .ignoresSafeArea(.keyboard) // Ensure bottom bar stays visible even with keyboard
         .onAppear {
-            loadUserBusiness()
-            setupTabBarAppearance()
+            // Only initialize once
+            if !hasInitialized {
+                loadUserBusiness()
+                setupTabBarAppearance()
+                hasInitialized = true
+            }
         }
         .onChange(of: navigationState.selectedTab) { oldValue, newValue in
             print("📱 Tab changed from \(oldValue.rawValue) to \(newValue.rawValue)")
@@ -72,8 +77,10 @@ struct BizzNavigationContainer: View {
         }
         
         userService.getUserBusiness { business in
-            self.navigationState.userBusiness = business
-            print("📊 Dashboard: Business loaded - \(business?.name ?? "nil")")
+            if self.navigationState.userBusiness?.id != business?.id {
+                self.navigationState.userBusiness = business
+                print("📊 Dashboard: Business loaded - \(business?.name ?? "nil")")
+            }
         }
     }
 }
