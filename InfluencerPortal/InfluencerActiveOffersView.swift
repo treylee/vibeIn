@@ -471,87 +471,114 @@ struct EmptyVibeMessagesState: View {
     }
 }
 
-// MARK: - Joined Offer Card
 struct InfluencerJoinedOfferCard: View {
     let offer: FirebaseOffer
-    @EnvironmentObject var navigationState: InfluencerNavigationState
+    
+    // ADD THESE STATE VARIABLES HERE (at the top of the struct)
+    @State private var showQRCode = false
+    @State private var isRedeemed = false
+    @State private var checkingStatus = true
+    @StateObject private var offerService = FirebaseOfferService.shared
+    @StateObject private var influencerService = FirebaseInfluencerService.shared
     
     var body: some View {
-        NavigationLink(destination: InfluencerRestaurantDetailView(offer: offer)
-            .environmentObject(navigationState)
-        ) {
-            VStack(alignment: .leading, spacing: 12) {
-                // Status Badge
-                HStack {
-                    Label("Active", systemImage: "checkmark.circle.fill")
-                        .font(.caption)
-                        .foregroundColor(.green)
-                    
-                    Spacer()
-                    
-                    Text("Complete by \(offer.formattedValidUntil)")
-                        .font(.caption2)
-                        .foregroundColor(.orange)
-                }
-                
-                // Business Info
+        VStack(alignment: .leading, spacing: 12) {
+            // Header with Business Name and Status
+            HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(offer.businessName)
-                        .font(.headline)
+                        .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.black)
                     
-                    Text(offer.businessAddress)
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                        .lineLimit(1)
-                }
-                
-                // Offer Description
-                Text(offer.description)
-                    .font(.subheadline)
-                    .foregroundColor(.black.opacity(0.8))
-                    .lineLimit(2)
-                
-                // Platforms to review on
-                HStack(spacing: 8) {
-                    Text("Review on:")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    
-                    ForEach(offer.platforms, id: \.self) { platform in
-                        PlatformChip(platform: platform)
+                    HStack(spacing: 4) {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(.gray)
+                        Text(offer.businessAddress)
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                            .lineLimit(1)
                     }
-                    
-                    Spacer()
                 }
                 
-                // Action Button
-                HStack {
-                    Spacer()
-                    Text("View Details")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.purple)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Color.purple.opacity(0.1))
-                        .cornerRadius(20)
+                Spacer()
+                
+                // Status Badge - ADD THIS
+                if checkingStatus {
+                    ProgressView()
+                        .frame(height: 20)
+                } else if isRedeemed {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("Redeemed")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.green)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.green.opacity(0.1))
+                    .cornerRadius(20)
                 }
             }
-            .padding()
-            .background(
-                LinearGradient(
-                    colors: [Color.green.opacity(0.05), Color.green.opacity(0.02)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
+            
+            // ... rest of your existing card content ...
+            
+            // ADD THIS QR CODE BUTTON (add this after your existing content)
+            Button(action: {
+                if !isRedeemed {
+                    showQRCode = true
+                }
+            }) {
+                HStack {
+                    Image(systemName: isRedeemed ? "checkmark.circle" : "qrcode")
+                    Text(isRedeemed ? "Already Redeemed" : "Show QR Code")
+                        .font(.system(size: 14, weight: .semibold))
+                }
+                .foregroundColor(isRedeemed ? .gray : .white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(
+                            isRedeemed ?
+                            LinearGradient(colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.3)],
+                                          startPoint: .leading,
+                                          endPoint: .trailing) :
+                            LinearGradient(colors: [.purple, .pink],
+                                          startPoint: .leading,
+                                          endPoint: .trailing)
+                        )
                 )
-            )
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.green.opacity(0.3), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.05), radius: 5, y: 2)
+            }
+            .disabled(isRedeemed)
+        }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, y: 2)
+        .onAppear {
+            checkRedemptionStatus()
+        }
+        // ADD THE FULLSCREENCOVER HERE (at the end, after all modifiers)
+        .fullScreenCover(isPresented: $showQRCode) {
+            if let influencer = influencerService.currentInfluencer {
+                OfferQRCodeView(offer: offer, influencer: influencer)
+            }
+        }
+    }
+    
+    // ADD THIS FUNCTION to check redemption status
+    private func checkRedemptionStatus() {
+        guard let influencer = influencerService.currentInfluencer else { return }
+        
+        offerService.checkRedemptionStatus(
+            offerId: offer.id ?? "",
+            influencerId: influencer.influencerId
+        ) { redeemed in
+            self.isRedeemed = redeemed
+            self.checkingStatus = false
         }
     }
 }
@@ -573,6 +600,94 @@ struct EmptyJoinedOffersState: View {
                 .foregroundColor(.gray.opacity(0.8))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
+        }
+    }
+    struct InfluencerJoinedOfferCard: View {
+        let offer: FirebaseOffer
+        @State private var showQRCode = false
+        @State private var isRedeemed = false
+        @State private var checkingStatus = true
+        @StateObject private var offerService = FirebaseOfferService.shared
+        @StateObject private var influencerService = FirebaseInfluencerService.shared
+        
+        var body: some View {
+            VStack(alignment: .leading, spacing: 12) {
+                // ... existing header code ...
+                
+                // Add Redemption Status
+                if checkingStatus {
+                    ProgressView()
+                        .frame(height: 20)
+                } else if isRedeemed {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("Redeemed")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.green)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.green.opacity(0.1))
+                    .cornerRadius(20)
+                }
+                
+                // ... existing content ...
+                
+                // Add QR Code Button
+                Button(action: {
+                    if !isRedeemed {
+                        showQRCode = true
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: isRedeemed ? "checkmark.circle" : "qrcode")
+                        Text(isRedeemed ? "Already Redeemed" : "Show QR Code")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundColor(isRedeemed ? .gray : .white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(
+                                isRedeemed ?
+                                LinearGradient(colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.3)],
+                                              startPoint: .leading,
+                                              endPoint: .trailing) :
+                                LinearGradient(colors: [.purple, .pink],
+                                              startPoint: .leading,
+                                              endPoint: .trailing)
+                            )
+                    )
+                }
+                .disabled(isRedeemed)
+            }
+            .padding()
+            .background(Color.white)
+            .cornerRadius(16)
+            .shadow(color: Color.black.opacity(0.05), radius: 5, y: 2)
+            .onAppear {
+                checkRedemptionStatus()
+            }
+            .fullScreenCover(isPresented: $showQRCode) {
+                if let influencer = influencerService.currentInfluencer {
+                    OfferQRCodeView(offer: offer, influencer: influencer)
+                }
+            }
+        }
+        
+        private func checkRedemptionStatus() {
+            guard let influencer = influencerService.currentInfluencer else { return }
+            
+            offerService.checkRedemptionStatus(
+                offerId: offer.id ?? "",
+                influencerId: influencer.influencerId
+            ) { redeemed in
+                self.isRedeemed = redeemed
+                self.checkingStatus = false
+            }
         }
     }
 }

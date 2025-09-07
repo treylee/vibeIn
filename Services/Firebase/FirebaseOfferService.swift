@@ -295,4 +295,59 @@ class FirebaseOfferService: ObservableObject {
                 }
             }
     }
+    func createRedemptionRecord(
+        redemptionId: String,
+        offerId: String,
+        influencerId: String,
+        influencerName: String,
+        businessId: String,
+        businessName: String,
+        completion: @escaping (Bool) -> Void
+    ) {
+        let redemption = OfferRedemption(
+            redemptionId: redemptionId,
+            offerId: offerId,
+            influencerId: influencerId,
+            influencerName: influencerName,
+            businessId: businessId,
+            businessName: businessName
+        )
+        
+        let redemptionData: [String: Any] = [
+            "redemptionId": redemption.redemptionId,
+            "offerId": redemption.offerId,
+            "influencerId": redemption.influencerId,
+            "influencerName": redemption.influencerName,
+            "businessId": redemption.businessId,
+            "businessName": redemption.businessName,
+            "isRedeemed": redemption.isRedeemed,
+            "createdAt": redemption.createdAt,
+            "redeemedAt": NSNull()
+        ]
+        
+        db.collection("redemptions").document(redemptionId).setData(redemptionData) { error in
+            if let error = error {
+                print("❌ Error creating redemption record: \(error)")
+                completion(false)
+            } else {
+                print("✅ Redemption record created: \(redemptionId)")
+                completion(true)
+            }
+        }
+    }
+
+    func checkRedemptionStatus(
+        offerId: String,
+        influencerId: String,
+        completion: @escaping (Bool) -> Void
+    ) {
+        db.collection("redemptions")
+            .whereField("offerId", isEqualTo: offerId)
+            .whereField("influencerId", isEqualTo: influencerId)
+            .whereField("isRedeemed", isEqualTo: true)
+            .getDocuments { snapshot, error in
+                completion(!(snapshot?.documents.isEmpty ?? true))
+            }
+    }
+
 }

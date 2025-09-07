@@ -1,9 +1,7 @@
-// Path: vibeIn/Models/Firebase/FirebaseOfferModels.swift
 
 import Foundation
 import FirebaseFirestore
 
-// MARK: - Firebase Offer Model
 struct FirebaseOffer: Codable, Identifiable {
     @DocumentID var id: String?
     let businessId: String
@@ -101,5 +99,37 @@ struct OfferParticipation: Codable, Identifiable {
         self.completedAt = nil
         self.isCompleted = false
         self.proofSubmitted = false
+    }
+}
+// This is just the data model/struct - goes in FirebaseOfferModels.swift
+struct OfferRedemption: Codable, Identifiable {
+    @DocumentID var id: String?
+    let redemptionId: String
+    let offerId: String
+    let influencerId: String
+    let influencerName: String
+    let businessId: String
+    let businessName: String
+    let isRedeemed: Bool
+    let createdAt: Timestamp
+    let redeemedAt: Timestamp?
+    
+    init(
+        redemptionId: String,
+        offerId: String,
+        influencerId: String,
+        influencerName: String,
+        businessId: String,
+        businessName: String
+    ) {
+        self.redemptionId = redemptionId
+        self.offerId = offerId
+        self.influencerId = influencerId
+        self.influencerName = influencerName
+        self.businessId = businessId
+        self.businessName = businessName
+        self.isRedeemed = false
+        self.createdAt = Timestamp()
+        self.redeemedAt = nil
     }
 }
