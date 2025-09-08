@@ -88,7 +88,7 @@ struct OfferQRCodeView: View {
             }
         }
         .onAppear {
-            generateNewQRCode()
+            generateNewQRCode()  // This will now check for existing redemption first
             UIScreen.main.brightness = 1.0  // Max brightness
         }
         .onDisappear {
@@ -97,33 +97,71 @@ struct OfferQRCodeView: View {
     }
     
     private func generateNewQRCode() {
-        redemptionId = UUID().uuidString
+        print("🎯 Starting QR generation for offer: \(offer.id ?? "nil")")
         
-        offerService.createRedemptionRecord(
-            redemptionId: redemptionId,
-            offerId: offer.id ?? "",
-            influencerId: influencer.influencerId,
-            influencerName: influencer.userName,
-            businessId: offer.businessId,
-            businessName: offer.businessName
-        ) { success in
-            if success {
-                let qrData = [
-                    "redemptionId": redemptionId,
-                    "offerId": offer.id ?? "",
-                    "influencerId": influencer.influencerId,
-                    "businessName": offer.businessName
-                ]
-                
-                if let jsonData = try? JSONSerialization.data(withJSONObject: qrData),
-                   let jsonString = String(data: jsonData, encoding: .utf8) {
-                    self.qrImage = generateQRCodeImage(from: jsonString)
+        guard let offerId = offer.id else {
+            print("❌ No offer ID!")
+            isGenerating = false
+            return
+        }
+        
+        // First, check if a redemption already exists
+        offerService.getExistingRedemption(
+            offerId: offerId,
+            influencerId: influencer.influencerId
+        ) { existingRedemptionId in
+            DispatchQueue.main.async {
+                if let existingId = existingRedemptionId {
+                    // Use existing redemption
+                    self.redemptionId = existingId
+                    print("♻️ Using existing redemption: \(existingId)")
+                    self.generateQRFromRedemptionId(existingId)
+                    self.isGenerating = false
+                } else {
+                    // Create new redemption only if none exists
+                    let newRedemptionId = UUID().uuidString
+                    self.redemptionId = newRedemptionId
+                    print("🆕 Creating NEW redemption: \(newRedemptionId)")
+                    
+                    self.offerService.createRedemptionRecord(
+                        redemptionId: newRedemptionId,
+                        offerId: offerId,
+                        influencerId: self.influencer.influencerId,
+                        influencerName: self.influencer.userName,
+                        businessId: self.offer.businessId,
+                        businessName: self.offer.businessName
+                    ) { success in
+                        DispatchQueue.main.async {
+                            if success {
+                                print("✅ Created new redemption: \(newRedemptionId)")
+                                self.generateQRFromRedemptionId(newRedemptionId)
+                            } else {
+                                print("❌ Failed to create redemption")
+                            }
+                            self.isGenerating = false
+                        }
+                    }
                 }
             }
-            isGenerating = false
         }
     }
     
+    // NEW: Separate method to generate QR from redemption ID
+    private func generateQRFromRedemptionId(_ redemptionId: String) {
+        let qrData = [
+            "redemptionId": redemptionId,
+            "offerId": offer.id ?? "",
+            "influencerId": influencer.influencerId,
+            "businessName": offer.businessName
+        ]
+        
+        if let jsonData = try? JSONSerialization.data(withJSONObject: qrData),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            self.qrImage = generateQRCodeImage(from: jsonString)
+        }
+    }
+    
+    // UNCHANGED: Keep the same QR generation logic
     private func generateQRCodeImage(from string: String) -> UIImage? {
         let context = CIContext()
         let filter = CIFilter.qrCodeGenerator()

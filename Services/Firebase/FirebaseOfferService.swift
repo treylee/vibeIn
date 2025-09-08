@@ -304,24 +304,21 @@ class FirebaseOfferService: ObservableObject {
         businessName: String,
         completion: @escaping (Bool) -> Void
     ) {
-        let redemption = OfferRedemption(
-            redemptionId: redemptionId,
-            offerId: offerId,
-            influencerId: influencerId,
-            influencerName: influencerName,
-            businessId: businessId,
-            businessName: businessName
-        )
+        print("📝 Creating redemption with:")
+        print("   - redemptionId: \(redemptionId)")
+        print("   - offerId: \(offerId)")
+        print("   - influencerId: \(influencerId)")
+        print("   - businessId: \(businessId)")
         
         let redemptionData: [String: Any] = [
-            "redemptionId": redemption.redemptionId,
-            "offerId": redemption.offerId,
-            "influencerId": redemption.influencerId,
-            "influencerName": redemption.influencerName,
-            "businessId": redemption.businessId,
-            "businessName": redemption.businessName,
-            "isRedeemed": redemption.isRedeemed,
-            "createdAt": redemption.createdAt,
+            "redemptionId": redemptionId,
+            "offerId": offerId,              // Make sure this matches query
+            "influencerId": influencerId,    // Make sure this matches query
+            "influencerName": influencerName,
+            "businessId": businessId,
+            "businessName": businessName,
+            "isRedeemed": false,             // IMPORTANT: Must be false initially
+            "createdAt": Timestamp(),
             "redeemedAt": NSNull()
         ]
         
@@ -331,11 +328,12 @@ class FirebaseOfferService: ObservableObject {
                 completion(false)
             } else {
                 print("✅ Redemption record created: \(redemptionId)")
+                print("   Stored with offerId: \(offerId)")
+                print("   Stored with influencerId: \(influencerId)")
                 completion(true)
             }
         }
     }
-
     func checkRedemptionStatus(
         offerId: String,
         influencerId: String,
@@ -349,5 +347,153 @@ class FirebaseOfferService: ObservableObject {
                 completion(!(snapshot?.documents.isEmpty ?? true))
             }
     }
-
+    func verifyAndRedeemOffer(
+        redemptionId: String,
+        completion: @escaping (Result<(influencerName: String, offerDescription: String), Error>) -> Void
+    ) {
+        print("🔍 Verifying redemption: \(redemptionId)")
+        
+        // Get the redemption record
+        db.collection("redemptions").document(redemptionId).getDocument { [weak self] snapshot, error in
+            if let error = error {
+                print("❌ Error fetching redemption: \(error.localizedDescription)")
+                completion(.failure(NSError(
+                    domain: "RedemptionError",
+                    code: 404,
+                    userInfo: [NSLocalizedDescriptionKey: "Redemption record not found"]
+                )))
+                return
+            }
+            
+            guard let data = snapshot?.data(),
+                  let influencerName = data["influencerName"] as? String,
+                  let offerId = data["offerId"] as? String,
+                  let isRedeemed = data["isRedeemed"] as? Bool else {
+                print("❌ Invalid redemption data")
+                completion(.failure(NSError(
+                    domain: "RedemptionError",
+                    code: 400,
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid QR code data"]
+                )))
+                return
+            }
+            
+            // Check if already redeemed
+            if isRedeemed {
+                print("⚠️ Offer already redeemed")
+                completion(.failure(NSError(
+                    domain: "RedemptionError",
+                    code: 409,
+                    userInfo: [NSLocalizedDescriptionKey: "This offer has already been redeemed"]
+                )))
+                return
+            }
+            
+            // Get offer details
+            self?.db.collection(self?.offersCollection ?? "offers").document(offerId).getDocument { offerSnapshot, offerError in
+                let offerDescription = (offerSnapshot?.data()?["description"] as? String) ?? "Special Offer"
+                
+                // Update redemption record
+                let updateData: [String: Any] = [
+                    "isRedeemed": true,
+                    "redeemedAt": Timestamp()
+                ]
+                
+                self?.db.collection("redemptions").document(redemptionId).updateData(updateData) { updateError in
+                    if let updateError = updateError {
+                        print("❌ Error updating redemption: \(updateError.localizedDescription)")
+                        completion(.failure(updateError))
+                    } else {
+                        print("✅ Offer successfully redeemed for \(influencerName)")
+                        completion(.success((
+                            influencerName: influencerName,
+                            offerDescription: offerDescription
+                        )))
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Get Redemption Statistics (ALSO INSIDE THE CLASS)
+    func getRedemptionStats(
+        for businessId: String,
+        completion: @escaping (_ totalRedemptions: Int, _ pendingRedemptions: Int) -> Void
+    ) {
+        db.collection("redemptions")
+            .whereField("businessId", isEqualTo: businessId)
+            .getDocuments { snapshot, error in
+                guard let documents = snapshot?.documents else {
+                    completion(0, 0)
+                    return
+                }
+                
+                let total = documents.count
+                let redeemed = documents.filter {
+                    ($0.data()["isRedeemed"] as? Bool) == true
+                }.count
+                let pending = total - redeemed
+                
+                completion(redeemed, pending)
+                
+            }
+    }
+    // MARK: - Get Existing Redemption (Make sure this is INSIDE the FirebaseOfferService class)
+    func getExistingRedemption(
+        offerId: String,
+        influencerId: String,
+        completion: @escaping (String?) -> Void
+    ) {
+        print("🔍 Checking for existing redemption:")
+        print("   - Looking for offerId: \(offerId)")
+        print("   - Looking for influencerId: \(influencerId)")
+        
+        // First, let's see ALL redemptions for this offer (for debugging)
+        db.collection("redemptions")
+            .whereField("offerId", isEqualTo: offerId)
+            .getDocuments { snapshot, error in
+                print("📊 Total redemptions for this offer: \(snapshot?.documents.count ?? 0)")
+                
+                if let docs = snapshot?.documents {
+                    for doc in docs {
+                        let data = doc.data()
+                        print("   - Doc: influencerId=\(data["influencerId"] ?? "nil"), isRedeemed=\(data["isRedeemed"] ?? "nil")")
+                    }
+                }
+            }
+        
+        // Now do the actual query
+        db.collection("redemptions")
+            .whereField("offerId", isEqualTo: offerId)
+            .whereField("influencerId", isEqualTo: influencerId)
+            .whereField("isRedeemed", isEqualTo: false)
+            .limit(to: 1)
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    print("❌ Error checking redemption: \(error)")
+                    completion(nil)
+                    return
+                }
+                
+                print("📄 Found \(snapshot?.documents.count ?? 0) matching redemptions")
+                
+                if let document = snapshot?.documents.first {
+                    let data = document.data()
+                    print("✅ Found existing redemption document")
+                    print("   Document data: \(data)")
+                    
+                    if let redemptionId = data["redemptionId"] as? String {
+                        print("✅ Using existing redemption: \(redemptionId)")
+                        completion(redemptionId)
+                    } else {
+                        print("⚠️ Document exists but no redemptionId field")
+                        // Try using document ID as redemption ID
+                        completion(document.documentID)
+                    }
+                } else {
+                    print("🆕 No existing redemption found, will create new")
+                    completion(nil)
+                }
+            }
+    }
 }
