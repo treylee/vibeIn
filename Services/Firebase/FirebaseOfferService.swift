@@ -10,6 +10,7 @@ class FirebaseOfferService: ObservableObject {
     private let db = Firestore.firestore()
     private let offersCollection = "offers"
     private let participationsCollection = "offer_participations"
+    private let redemptionsCollection = "redemptions"
     
     @Published var offers: [FirebaseOffer] = []
     @Published var isLoading = false
@@ -87,7 +88,7 @@ class FirebaseOfferService: ObservableObject {
         }
     }
     
-    // MARK: - Join Offer (UPDATED)
+    // MARK: - Join Offer (FIXED - Now creates both participation AND redemption record)
     func joinOffer(
         offerId: String,
         businessId: String,
@@ -109,33 +110,57 @@ class FirebaseOfferService: ObservableObject {
                 }
                 
                 // Check if already joined
-                if let existingParticipation = snapshot?.documents.first {
+                if let _ = snapshot?.documents.first {
                     print("⚠️ Influencer already joined this offer")
-                    completion(.failure(NSError(domain: "OfferService", code: 1001, userInfo: [NSLocalizedDescriptionKey: "You have already joined this offer"])))
+                    completion(.failure(NSError(
+                        domain: "OfferService",
+                        code: 1001,
+                        userInfo: [NSLocalizedDescriptionKey: "You have already joined this offer"]
+                    )))
                     return
                 }
                 
-                // If not joined, proceed to join
-                self?.createParticipation(
-                    offerId: offerId,
-                    businessId: businessId,
-                    influencerId: influencerId,
-                    influencerName: influencerName,
-                    platform: platform,
-                    completion: completion
-                )
+                // Get offer details for redemption record
+                self?.db.collection(self?.offersCollection ?? "offers")
+                    .document(offerId)
+                    .getDocument { offerSnapshot, offerError in
+                        guard let offerData = offerSnapshot?.data(),
+                              let businessName = offerData["businessName"] as? String else {
+                            completion(.failure(NSError(
+                                domain: "OfferService",
+                                code: 1002,
+                                userInfo: [NSLocalizedDescriptionKey: "Could not find offer details"]
+                            )))
+                            return
+                        }
+                        
+                        // If not joined, create BOTH participation AND redemption records
+                        self?.createParticipationWithRedemption(
+                            offerId: offerId,
+                            businessId: businessId,
+                            businessName: businessName,
+                            influencerId: influencerId,
+                            influencerName: influencerName,
+                            platform: platform,
+                            completion: completion
+                        )
+                    }
             }
     }
     
-    // MARK: - Create Participation
-    private func createParticipation(
+    // MARK: - Create Participation WITH Redemption Record (NEW)
+    private func createParticipationWithRedemption(
         offerId: String,
         businessId: String,
+        businessName: String,
         influencerId: String,
         influencerName: String,
         platform: String,
         completion: @escaping (Result<String, Error>) -> Void
     ) {
+        // Generate a SINGLE redemption ID that will be used for this participation
+        let redemptionId = UUID().uuidString
+        
         let participation = OfferParticipation(
             offerId: offerId,
             businessId: businessId,
@@ -153,15 +178,32 @@ class FirebaseOfferService: ObservableObject {
             "joinedAt": participation.joinedAt,
             "completedAt": participation.completedAt as Any,
             "isCompleted": participation.isCompleted,
-            "proofSubmitted": participation.proofSubmitted
+            "proofSubmitted": participation.proofSubmitted,
+            "redemptionId": redemptionId  // Link to redemption record
         ]
         
-        // Use a batch write to ensure both operations succeed or fail together
+        let redemptionData: [String: Any] = [
+            "redemptionId": redemptionId,
+            "offerId": offerId,
+            "influencerId": influencerId,
+            "influencerName": influencerName,
+            "businessId": businessId,
+            "businessName": businessName,
+            "isRedeemed": false,
+            "createdAt": Timestamp(),
+            "redeemedAt": NSNull()
+        ]
+        
+        // Use a batch write to ensure all operations succeed or fail together
         let batch = db.batch()
         
         // Add participation record
         let participationRef = db.collection(participationsCollection).document()
         batch.setData(participationData, forDocument: participationRef)
+        
+        // Add redemption record with the SAME ID
+        let redemptionRef = db.collection(redemptionsCollection).document(redemptionId)
+        batch.setData(redemptionData, forDocument: redemptionRef)
         
         // Update offer participant count
         let offerRef = db.collection(offersCollection).document(offerId)
@@ -175,10 +217,183 @@ class FirebaseOfferService: ObservableObject {
                 print("❌ Error joining offer: \(error.localizedDescription)")
                 completion(.failure(error))
             } else {
-                print("✅ Successfully joined offer and incremented count")
+                print("✅ Successfully joined offer with redemption ID: \(redemptionId)")
+                print("   - Created participation record")
+                print("   - Created redemption record")
+                print("   - Incremented offer count")
                 completion(.success("Successfully joined the offer!"))
             }
         }
+    }
+    
+    // MARK: - Get Redemption ID for Participation (NEW)
+    func getRedemptionId(
+        offerId: String,
+        influencerId: String,
+        completion: @escaping (String?) -> Void
+    ) {
+        print("🔍 Getting redemption ID for offer: \(offerId), influencer: \(influencerId)")
+        
+        // First check participation record for redemption ID
+        db.collection(participationsCollection)
+            .whereField("offerId", isEqualTo: offerId)
+            .whereField("influencerId", isEqualTo: influencerId)
+            .limit(to: 1)
+            .getDocuments { [weak self] snapshot, error in
+                if let error = error {
+                    print("❌ Error getting participation: \(error)")
+                    completion(nil)
+                    return
+                }
+                
+                guard let participationData = snapshot?.documents.first?.data(),
+                      let redemptionId = participationData["redemptionId"] as? String else {
+                    print("❌ No participation found or no redemption ID")
+                    completion(nil)
+                    return
+                }
+                
+                print("✅ Found redemption ID: \(redemptionId)")
+                
+                // Verify the redemption record exists and is not redeemed
+                self?.db.collection(self?.redemptionsCollection ?? "redemptions")
+                    .document(redemptionId)
+                    .getDocument { redemptionSnapshot, _ in
+                        if let data = redemptionSnapshot?.data(),
+                           let isRedeemed = data["isRedeemed"] as? Bool,
+                           !isRedeemed {
+                            print("✅ Redemption is valid and unused")
+                            completion(redemptionId)
+                        } else {
+                            print("⚠️ Redemption already used or invalid")
+                            completion(nil)
+                        }
+                    }
+            }
+    }
+    
+    // MARK: - Verify and Redeem Offer (UPDATED)
+    func verifyAndRedeemOffer(
+        redemptionId: String,
+        completion: @escaping (Result<(influencerName: String, offerDescription: String), Error>) -> Void
+    ) {
+        print("🔍 Verifying redemption: \(redemptionId)")
+        
+        // Get the redemption record
+        db.collection(redemptionsCollection).document(redemptionId).getDocument { [weak self] snapshot, error in
+            if let error = error {
+                print("❌ Error fetching redemption: \(error.localizedDescription)")
+                completion(.failure(NSError(
+                    domain: "RedemptionError",
+                    code: 404,
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid QR code - redemption not found"]
+                )))
+                return
+            }
+            
+            guard let data = snapshot?.data(),
+                  let influencerName = data["influencerName"] as? String,
+                  let offerId = data["offerId"] as? String,
+                  let businessId = data["businessId"] as? String,
+                  let isRedeemed = data["isRedeemed"] as? Bool else {
+                print("❌ Invalid redemption data")
+                completion(.failure(NSError(
+                    domain: "RedemptionError",
+                    code: 400,
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid QR code format"]
+                )))
+                return
+            }
+            
+            // Check if already redeemed
+            if isRedeemed {
+                print("⚠️ Offer already redeemed")
+                completion(.failure(NSError(
+                    domain: "RedemptionError",
+                    code: 409,
+                    userInfo: [NSLocalizedDescriptionKey: "This offer has already been redeemed"]
+                )))
+                return
+            }
+            
+            // Get offer details and verify business
+            self?.db.collection(self?.offersCollection ?? "offers").document(offerId).getDocument { offerSnapshot, _ in
+                guard let offerData = offerSnapshot?.data(),
+                      let offerBusinessId = offerData["businessId"] as? String else {
+                    completion(.failure(NSError(
+                        domain: "RedemptionError",
+                        code: 404,
+                        userInfo: [NSLocalizedDescriptionKey: "Offer not found"]
+                    )))
+                    return
+                }
+                
+                // IMPORTANT: Verify this redemption is for the correct business
+                if offerBusinessId != businessId {
+                    print("❌ Business mismatch - redemption is for different business")
+                    completion(.failure(NSError(
+                        domain: "RedemptionError",
+                        code: 403,
+                        userInfo: [NSLocalizedDescriptionKey: "This offer is for a different business"]
+                    )))
+                    return
+                }
+                
+                let offerDescription = (offerData["description"] as? String) ?? "Special Offer"
+                
+                // Use batch to update both redemption and participation
+                let batch = self?.db.batch()
+                
+                // Update redemption record
+                let redemptionRef = self?.db.collection(self?.redemptionsCollection ?? "redemptions").document(redemptionId)
+                batch?.updateData([
+                    "isRedeemed": true,
+                    "redeemedAt": Timestamp()
+                ], forDocument: redemptionRef!)
+                
+                // Update participation record
+                self?.db.collection(self?.participationsCollection ?? "offer_participations")
+                    .whereField("redemptionId", isEqualTo: redemptionId)
+                    .getDocuments { participationSnapshot, _ in
+                        if let participationDoc = participationSnapshot?.documents.first {
+                            batch?.updateData([
+                                "isCompleted": true,
+                                "completedAt": Timestamp()
+                            ], forDocument: participationDoc.reference)
+                        }
+                        
+                        // Commit the batch
+                        batch?.commit { error in
+                            if let error = error {
+                                print("❌ Error updating redemption: \(error.localizedDescription)")
+                                completion(.failure(error))
+                            } else {
+                                print("✅ Offer successfully redeemed for \(influencerName)")
+                                completion(.success((
+                                    influencerName: influencerName,
+                                    offerDescription: offerDescription
+                                )))
+                            }
+                        }
+                    }
+            }
+        }
+    }
+    
+    // MARK: - Check Redemption Status
+    func checkRedemptionStatus(
+        offerId: String,
+        influencerId: String,
+        completion: @escaping (Bool) -> Void
+    ) {
+        // Check participation record for completion status
+        db.collection(participationsCollection)
+            .whereField("offerId", isEqualTo: offerId)
+            .whereField("influencerId", isEqualTo: influencerId)
+            .whereField("isCompleted", isEqualTo: true)
+            .getDocuments { snapshot, error in
+                completion(!(snapshot?.documents.isEmpty ?? true))
+            }
     }
     
     // MARK: - Get Offers for Business
@@ -195,23 +410,12 @@ class FirebaseOfferService: ObservableObject {
                     return
                 }
                 
-                print("📄 Found \(snapshot?.documents.count ?? 0) documents")
+                let offers = snapshot?.documents.compactMap { document in
+                    try? document.data(as: FirebaseOffer.self)
+                } ?? []
                 
-                var parsedOffers: [FirebaseOffer] = []
-                
-                for document in snapshot?.documents ?? [] {
-                    do {
-                        let offer = try document.data(as: FirebaseOffer.self)
-                        parsedOffers.append(offer)
-                        print("   ✅ Parsed offer: \(offer.title)")
-                    } catch {
-                        print("   ❌ Failed to parse offer with ID \(document.documentID): \(error)")
-                        print("   📝 Raw data: \(document.data())")
-                    }
-                }
-                
-                print("✅ Successfully parsed \(parsedOffers.count) offers")
-                completion(parsedOffers)
+                print("✅ Found \(offers.count) offers for business")
+                completion(offers)
             }
     }
     
@@ -219,7 +423,7 @@ class FirebaseOfferService: ObservableObject {
     func getInfluencerActiveOffers(influencerId: String, completion: @escaping ([FirebaseOffer]) -> Void) {
         print("🔍 Getting active offers for influencer: \(influencerId)")
         
-        // First get all participations for this influencer
+        // Get all participations for this influencer that are not completed
         db.collection(participationsCollection)
             .whereField("influencerId", isEqualTo: influencerId)
             .whereField("isCompleted", isEqualTo: false)
@@ -237,7 +441,7 @@ class FirebaseOfferService: ObservableObject {
                     return
                 }
                 
-                // Now fetch the actual offers
+                // Fetch the actual offers
                 self?.db.collection(self?.offersCollection ?? "offers")
                     .whereField(FieldPath.documentID(), in: offerIds)
                     .getDocuments { snapshot, error in
@@ -270,6 +474,30 @@ class FirebaseOfferService: ObservableObject {
             }
     }
     
+    // MARK: - Get Redemption Statistics for Business Dashboard
+    func getRedemptionStats(
+        for businessId: String,
+        completion: @escaping (_ totalRedemptions: Int, _ pendingRedemptions: Int) -> Void
+    ) {
+        db.collection(redemptionsCollection)
+            .whereField("businessId", isEqualTo: businessId)
+            .getDocuments { snapshot, error in
+                guard let documents = snapshot?.documents else {
+                    completion(0, 0)
+                    return
+                }
+                
+                let total = documents.count
+                let redeemed = documents.filter {
+                    ($0.data()["isRedeemed"] as? Bool) == true
+                }.count
+                let pending = total - redeemed
+                
+                print("📊 Business \(businessId) - Total: \(total), Redeemed: \(redeemed), Pending: \(pending)")
+                completion(redeemed, pending)
+            }
+    }
+    
     // MARK: - Deactivate Expired Offers
     func deactivateExpiredOffers() {
         let now = Timestamp()
@@ -292,207 +520,6 @@ class FirebaseOfferService: ObservableObject {
                     } else {
                         print("✅ Expired offers deactivated")
                     }
-                }
-            }
-    }
-    func createRedemptionRecord(
-        redemptionId: String,
-        offerId: String,
-        influencerId: String,
-        influencerName: String,
-        businessId: String,
-        businessName: String,
-        completion: @escaping (Bool) -> Void
-    ) {
-        print("📝 Creating redemption with:")
-        print("   - redemptionId: \(redemptionId)")
-        print("   - offerId: \(offerId)")
-        print("   - influencerId: \(influencerId)")
-        print("   - businessId: \(businessId)")
-        
-        let redemptionData: [String: Any] = [
-            "redemptionId": redemptionId,
-            "offerId": offerId,              // Make sure this matches query
-            "influencerId": influencerId,    // Make sure this matches query
-            "influencerName": influencerName,
-            "businessId": businessId,
-            "businessName": businessName,
-            "isRedeemed": false,             // IMPORTANT: Must be false initially
-            "createdAt": Timestamp(),
-            "redeemedAt": NSNull()
-        ]
-        
-        db.collection("redemptions").document(redemptionId).setData(redemptionData) { error in
-            if let error = error {
-                print("❌ Error creating redemption record: \(error)")
-                completion(false)
-            } else {
-                print("✅ Redemption record created: \(redemptionId)")
-                print("   Stored with offerId: \(offerId)")
-                print("   Stored with influencerId: \(influencerId)")
-                completion(true)
-            }
-        }
-    }
-    func checkRedemptionStatus(
-        offerId: String,
-        influencerId: String,
-        completion: @escaping (Bool) -> Void
-    ) {
-        db.collection("redemptions")
-            .whereField("offerId", isEqualTo: offerId)
-            .whereField("influencerId", isEqualTo: influencerId)
-            .whereField("isRedeemed", isEqualTo: true)
-            .getDocuments { snapshot, error in
-                completion(!(snapshot?.documents.isEmpty ?? true))
-            }
-    }
-    func verifyAndRedeemOffer(
-        redemptionId: String,
-        completion: @escaping (Result<(influencerName: String, offerDescription: String), Error>) -> Void
-    ) {
-        print("🔍 Verifying redemption: \(redemptionId)")
-        
-        // Get the redemption record
-        db.collection("redemptions").document(redemptionId).getDocument { [weak self] snapshot, error in
-            if let error = error {
-                print("❌ Error fetching redemption: \(error.localizedDescription)")
-                completion(.failure(NSError(
-                    domain: "RedemptionError",
-                    code: 404,
-                    userInfo: [NSLocalizedDescriptionKey: "Redemption record not found"]
-                )))
-                return
-            }
-            
-            guard let data = snapshot?.data(),
-                  let influencerName = data["influencerName"] as? String,
-                  let offerId = data["offerId"] as? String,
-                  let isRedeemed = data["isRedeemed"] as? Bool else {
-                print("❌ Invalid redemption data")
-                completion(.failure(NSError(
-                    domain: "RedemptionError",
-                    code: 400,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid QR code data"]
-                )))
-                return
-            }
-            
-            // Check if already redeemed
-            if isRedeemed {
-                print("⚠️ Offer already redeemed")
-                completion(.failure(NSError(
-                    domain: "RedemptionError",
-                    code: 409,
-                    userInfo: [NSLocalizedDescriptionKey: "This offer has already been redeemed"]
-                )))
-                return
-            }
-            
-            // Get offer details
-            self?.db.collection(self?.offersCollection ?? "offers").document(offerId).getDocument { offerSnapshot, offerError in
-                let offerDescription = (offerSnapshot?.data()?["description"] as? String) ?? "Special Offer"
-                
-                // Update redemption record
-                let updateData: [String: Any] = [
-                    "isRedeemed": true,
-                    "redeemedAt": Timestamp()
-                ]
-                
-                self?.db.collection("redemptions").document(redemptionId).updateData(updateData) { updateError in
-                    if let updateError = updateError {
-                        print("❌ Error updating redemption: \(updateError.localizedDescription)")
-                        completion(.failure(updateError))
-                    } else {
-                        print("✅ Offer successfully redeemed for \(influencerName)")
-                        completion(.success((
-                            influencerName: influencerName,
-                            offerDescription: offerDescription
-                        )))
-                    }
-                }
-            }
-        }
-    }
-    
-    // MARK: - Get Redemption Statistics (ALSO INSIDE THE CLASS)
-    func getRedemptionStats(
-        for businessId: String,
-        completion: @escaping (_ totalRedemptions: Int, _ pendingRedemptions: Int) -> Void
-    ) {
-        db.collection("redemptions")
-            .whereField("businessId", isEqualTo: businessId)
-            .getDocuments { snapshot, error in
-                guard let documents = snapshot?.documents else {
-                    completion(0, 0)
-                    return
-                }
-                
-                let total = documents.count
-                let redeemed = documents.filter {
-                    ($0.data()["isRedeemed"] as? Bool) == true
-                }.count
-                let pending = total - redeemed
-                
-                completion(redeemed, pending)
-                
-            }
-    }
-    // MARK: - Get Existing Redemption (Make sure this is INSIDE the FirebaseOfferService class)
-    func getExistingRedemption(
-        offerId: String,
-        influencerId: String,
-        completion: @escaping (String?) -> Void
-    ) {
-        print("🔍 Checking for existing redemption:")
-        print("   - Looking for offerId: \(offerId)")
-        print("   - Looking for influencerId: \(influencerId)")
-        
-        // First, let's see ALL redemptions for this offer (for debugging)
-        db.collection("redemptions")
-            .whereField("offerId", isEqualTo: offerId)
-            .getDocuments { snapshot, error in
-                print("📊 Total redemptions for this offer: \(snapshot?.documents.count ?? 0)")
-                
-                if let docs = snapshot?.documents {
-                    for doc in docs {
-                        let data = doc.data()
-                        print("   - Doc: influencerId=\(data["influencerId"] ?? "nil"), isRedeemed=\(data["isRedeemed"] ?? "nil")")
-                    }
-                }
-            }
-        
-        // Now do the actual query
-        db.collection("redemptions")
-            .whereField("offerId", isEqualTo: offerId)
-            .whereField("influencerId", isEqualTo: influencerId)
-            .whereField("isRedeemed", isEqualTo: false)
-            .limit(to: 1)
-            .getDocuments { snapshot, error in
-                if let error = error {
-                    print("❌ Error checking redemption: \(error)")
-                    completion(nil)
-                    return
-                }
-                
-                print("📄 Found \(snapshot?.documents.count ?? 0) matching redemptions")
-                
-                if let document = snapshot?.documents.first {
-                    let data = document.data()
-                    print("✅ Found existing redemption document")
-                    print("   Document data: \(data)")
-                    
-                    if let redemptionId = data["redemptionId"] as? String {
-                        print("✅ Using existing redemption: \(redemptionId)")
-                        completion(redemptionId)
-                    } else {
-                        print("⚠️ Document exists but no redemptionId field")
-                        // Try using document ID as redemption ID
-                        completion(document.documentID)
-                    }
-                } else {
-                    print("🆕 No existing redemption found, will create new")
-                    completion(nil)
                 }
             }
     }

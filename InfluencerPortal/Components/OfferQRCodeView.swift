@@ -1,3 +1,5 @@
+// Path: vibeIn/InfluencerPortal/Components/OfferQRCodeView.swift
+
 import SwiftUI
 import CoreImage.CIFilterBuiltins
 
@@ -7,7 +9,8 @@ struct OfferQRCodeView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var qrImage: UIImage?
     @State private var redemptionId: String = ""
-    @State private var isGenerating = true
+    @State private var isLoading = true
+    @State private var errorMessage: String?
     @StateObject private var offerService = FirebaseOfferService.shared
     
     var body: some View {
@@ -40,20 +43,53 @@ struct OfferQRCodeView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
                 
-                // QR Code
-                if let qrImage = qrImage {
-                    Image(uiImage: qrImage)
-                        .interpolation(.none)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 250, height: 250)
-                        .padding()
-                        .background(Color.white)
-                        .cornerRadius(20)
-                        .shadow(radius: 10)
-                } else if isGenerating {
-                    ProgressView("Generating QR Code...")
-                        .frame(width: 250, height: 250)
+                // QR Code or Loading/Error State
+                if let errorMessage = errorMessage {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 50))
+                            .foregroundColor(.orange)
+                        
+                        Text("Unable to Generate QR Code")
+                            .font(.headline)
+                            .foregroundColor(.black)
+                        
+                        Text(errorMessage)
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                    .frame(width: 250, height: 250)
+                    .padding()
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(20)
+                } else if let qrImage = qrImage {
+                    VStack(spacing: 8) {
+                        Image(uiImage: qrImage)
+                            .interpolation(.none)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 250, height: 250)
+                            .padding()
+                            .background(Color.white)
+                            .cornerRadius(20)
+                            .shadow(radius: 10)
+                        
+                        // QR Code ID for debugging (can be removed in production)
+                        Text("ID: \(String(redemptionId.prefix(8)))...")
+                            .font(.caption2)
+                            .foregroundColor(.gray.opacity(0.5))
+                    }
+                } else if isLoading {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Text("Loading QR Code...")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    .frame(width: 250, height: 250)
                 }
                 
                 // Instructions
@@ -69,6 +105,13 @@ struct OfferQRCodeView: View {
                     Text("Valid until: \(offer.formattedValidUntil)")
                         .font(.caption)
                         .foregroundColor(.gray)
+                    
+                    if !redemptionId.isEmpty {
+                        Text("✓ Your spot is reserved")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.green)
+                    }
                 }
                 .padding()
                 
@@ -88,7 +131,7 @@ struct OfferQRCodeView: View {
             }
         }
         .onAppear {
-            generateNewQRCode()  // This will now check for existing redemption first
+            loadExistingRedemption()
             UIScreen.main.brightness = 1.0  // Max brightness
         }
         .onDisappear {
@@ -96,57 +139,39 @@ struct OfferQRCodeView: View {
         }
     }
     
-    private func generateNewQRCode() {
-        print("🎯 Starting QR generation for offer: \(offer.id ?? "nil")")
+    // MARK: - Load Existing Redemption (FIXED)
+    private func loadExistingRedemption() {
+        print("🎯 Loading QR for offer: \(offer.id ?? "nil")")
         
         guard let offerId = offer.id else {
             print("❌ No offer ID!")
-            isGenerating = false
+            errorMessage = "Invalid offer. Please try again."
+            isLoading = false
             return
         }
         
-        // First, check if a redemption already exists
-        offerService.getExistingRedemption(
+        // Get the redemption ID from the participation record
+        offerService.getRedemptionId(
             offerId: offerId,
             influencerId: influencer.influencerId
-        ) { existingRedemptionId in
+        ) { redemptionId in
             DispatchQueue.main.async {
-                if let existingId = existingRedemptionId {
-                    // Use existing redemption
-                    self.redemptionId = existingId
-                    print("♻️ Using existing redemption: \(existingId)")
-                    self.generateQRFromRedemptionId(existingId)
-                    self.isGenerating = false
+                if let redemptionId = redemptionId {
+                    // Use the existing redemption ID
+                    self.redemptionId = redemptionId
+                    print("✅ Found existing redemption ID: \(redemptionId)")
+                    self.generateQRFromRedemptionId(redemptionId)
                 } else {
-                    // Create new redemption only if none exists
-                    let newRedemptionId = UUID().uuidString
-                    self.redemptionId = newRedemptionId
-                    print("🆕 Creating NEW redemption: \(newRedemptionId)")
-                    
-                    self.offerService.createRedemptionRecord(
-                        redemptionId: newRedemptionId,
-                        offerId: offerId,
-                        influencerId: self.influencer.influencerId,
-                        influencerName: self.influencer.userName,
-                        businessId: self.offer.businessId,
-                        businessName: self.offer.businessName
-                    ) { success in
-                        DispatchQueue.main.async {
-                            if success {
-                                print("✅ Created new redemption: \(newRedemptionId)")
-                                self.generateQRFromRedemptionId(newRedemptionId)
-                            } else {
-                                print("❌ Failed to create redemption")
-                            }
-                            self.isGenerating = false
-                        }
-                    }
+                    // No redemption found - they haven't joined this offer
+                    print("❌ No redemption found - influencer hasn't joined this offer")
+                    self.errorMessage = "You haven't joined this offer yet. Please join the offer first."
                 }
+                self.isLoading = false
             }
         }
     }
     
-    // NEW: Separate method to generate QR from redemption ID
+    // MARK: - Generate QR from Redemption ID
     private func generateQRFromRedemptionId(_ redemptionId: String) {
         let qrData = [
             "redemptionId": redemptionId,
@@ -155,13 +180,24 @@ struct OfferQRCodeView: View {
             "businessName": offer.businessName
         ]
         
+        print("📱 Generating QR with data:")
+        print("   - redemptionId: \(redemptionId)")
+        print("   - offerId: \(offer.id ?? "")")
+        print("   - businessName: \(offer.businessName)")
+        
         if let jsonData = try? JSONSerialization.data(withJSONObject: qrData),
            let jsonString = String(data: jsonData, encoding: .utf8) {
             self.qrImage = generateQRCodeImage(from: jsonString)
+            
+            if self.qrImage == nil {
+                self.errorMessage = "Failed to generate QR code. Please try again."
+            }
+        } else {
+            self.errorMessage = "Failed to create QR data. Please try again."
         }
     }
     
-    // UNCHANGED: Keep the same QR generation logic
+    // MARK: - Generate QR Code Image
     private func generateQRCodeImage(from string: String) -> UIImage? {
         let context = CIContext()
         let filter = CIFilter.qrCodeGenerator()

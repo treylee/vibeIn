@@ -1,7 +1,11 @@
+// Path: vibeIn/BizzPortal/QRComponents/BizzQRScannerView.swift
+
 import SwiftUI
 import AVFoundation
+import FirebaseFirestore
 
 struct BizzQRScannerView: View {
+    let businessId: String  // ADD THIS - Pass in the current business ID
     @Environment(\.dismiss) private var dismiss
     @State private var isScanning = true
     @State private var showSuccessView = false
@@ -51,7 +55,24 @@ struct BizzQRScannerView: View {
         VStack {
             // Top Bar
             HStack {
+                // Business Name Badge
+                HStack {
+                    Image(systemName: "building.2.fill")
+                        .font(.caption)
+                    Text("Scanning for your offers")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(Color.purple.opacity(0.8))
+                )
+                
                 Spacer()
+                
                 Button(action: { dismiss() }) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.title)
@@ -68,8 +89,8 @@ struct BizzQRScannerView: View {
                                 .blur(radius: 2)
                         )
                 }
-                .padding()
             }
+            .padding()
             
             Spacer()
             
@@ -115,6 +136,10 @@ struct BizzQRScannerView: View {
                 Text("Point at influencer's QR code")
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.8))
+                
+                Text("Only codes for YOUR offers will work")
+                    .font(.caption)
+                    .foregroundColor(.yellow)
             }
             .padding()
             .background(
@@ -135,6 +160,8 @@ struct BizzQRScannerView: View {
         let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
         impactFeedback.impactOccurred()
         
+        print("📱 Scanned QR Code")
+        
         // Parse QR code
         guard let data = code.data(using: .utf8),
               let qrData = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -145,9 +172,55 @@ struct BizzQRScannerView: View {
             return
         }
         
-        print("📱 Scanned QR - Redemption ID: \(redemptionId)")
+        print("📱 Scanned Redemption ID: \(redemptionId)")
+        print("📱 For Offer ID: \(offerId)")
+        print("📱 Current Business ID: \(businessId)")
         
-        // Verify and redeem - FIXED SYNTAX
+        // First, verify this offer belongs to the current business
+        verifyOfferOwnership(offerId: offerId, redemptionId: redemptionId)
+    }
+    
+    private func verifyOfferOwnership(offerId: String, redemptionId: String) {
+        // Get the offer to verify it belongs to this business
+        let db = Firestore.firestore()
+        db.collection("offers").document(offerId).getDocument { snapshot, error in
+            if let error = error {
+                print("❌ Error verifying offer: \(error)")
+                self.alertMessage = "Could not verify offer. Please try again."
+                self.showErrorAlert = true
+                return
+            }
+            
+            guard let offerData = snapshot?.data(),
+                  let offerBusinessId = offerData["businessId"] as? String else {
+                print("❌ Could not find offer data")
+                self.alertMessage = "Invalid offer. Please try again."
+                self.showErrorAlert = true
+                return
+            }
+            
+            print("🔍 Offer belongs to business: \(offerBusinessId)")
+            print("🔍 Current business: \(self.businessId)")
+            
+            // Verify this offer belongs to the current business
+            if offerBusinessId != self.businessId {
+                print("❌ Offer belongs to different business!")
+                let errorFeedback = UINotificationFeedbackGenerator()
+                errorFeedback.notificationOccurred(.error)
+                
+                self.alertMessage = "This QR code is for a different business's offer."
+                self.showErrorAlert = true
+                return
+            }
+            
+            print("✅ Offer verified - belongs to this business")
+            
+            // Now proceed with redemption
+            self.redeemOffer(redemptionId: redemptionId)
+        }
+    }
+    
+    private func redeemOffer(redemptionId: String) {
         offerService.verifyAndRedeemOffer(redemptionId: redemptionId) { result in
             switch result {
             case .success(let data):
@@ -176,7 +249,8 @@ struct BizzQRScannerView: View {
                 self.showErrorAlert = true
             }
         }
-    }}
+    }
+}
 
 // MARK: - Corner Marker View
 struct CornerMarker: View {

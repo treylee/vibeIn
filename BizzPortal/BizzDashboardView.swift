@@ -2,7 +2,8 @@
 
 import SwiftUI
 import MapKit
-import AVFoundation  
+import AVFoundation
+
 struct BusinessDashboardView: View {
     let business: FirebaseBusiness
     @State private var showQRScanner = false
@@ -33,7 +34,7 @@ struct BusinessDashboardView: View {
                     // Dashboard Header
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Dash")
+                            Text("Dashboard")
                                 .font(.system(size: 32, weight: .semibold, design: .rounded))
                                 .foregroundColor(Color(red: 0.5, green: 0.4, blue: 0.6))
                             
@@ -55,9 +56,13 @@ struct BusinessDashboardView: View {
                     
                     // Quick Stats Overview
                     QuickStatsRow(business: navigationState.userBusiness ?? business)
-                    // Add after QuickStatsRow or in a prominent position
-                    ScanQRButton(showQRScanner: $showQRScanner)
-                        .padding(.horizontal)
+                    
+                    // QR Scanner Button - FIXED: Pass the business parameter
+                    ScanQRButton(
+                        business: navigationState.userBusiness ?? business,
+                        showQRScanner: $showQRScanner
+                    )
+                    .padding(.horizontal)
                     
                     // Active Offers Section
                     ActiveOffersSection(
@@ -72,19 +77,19 @@ struct BusinessDashboardView: View {
                         selectedTimeframe: $selectedTimeframe
                     )
                     
-                    // Business Details Section without refresh callback
+                    // Business Details Section
                     BusinessDetailsSection(
                         business: navigationState.userBusiness ?? business
                     )
                     .padding(.horizontal)
                     
-                    // Menu Section without refresh callback
+                    // Menu Section
                     MenuSection(
                         business: navigationState.userBusiness ?? business
                     )
                     .padding(.horizontal)
                     
-                    // Category & Tags Section without refresh callback
+                    // Category & Tags Section
                     CategoryAndTagsSection(
                         business: navigationState.userBusiness ?? business
                     )
@@ -173,12 +178,16 @@ struct BusinessDashboardView: View {
             )
         }
     }
-    
 }
-// MARK: - Scan QR Button Component
+
+// MARK: - Scan QR Button Component (FIXED)
 struct ScanQRButton: View {
+    let business: FirebaseBusiness  // ADD THIS - receive business as parameter
     @Binding var showQRScanner: Bool
     @State private var showPermissionAlert = false
+    @State private var totalRedemptions = 0
+    @State private var pendingRedemptions = 0
+    @StateObject private var offerService = FirebaseOfferService.shared
     
     var body: some View {
         Button(action: {
@@ -208,15 +217,31 @@ struct ScanQRButton: View {
                         )
                 }
                 
-                // Text
+                // Text and Stats
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Scan QR Code")
                         .font(.system(size: 18, weight: .semibold, design: .rounded))
                         .foregroundColor(.black)
                     
-                    Text("Redeem influencer offers")
-                        .font(.system(size: 12, design: .rounded))
-                        .foregroundColor(.gray)
+                    HStack(spacing: 12) {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 6, height: 6)
+                            Text("\(totalRedemptions) redeemed")
+                                .font(.system(size: 11, design: .rounded))
+                                .foregroundColor(.gray)
+                        }
+                        
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color.orange)
+                                .frame(width: 6, height: 6)
+                            Text("\(pendingRedemptions) pending")
+                                .font(.system(size: 11, design: .rounded))
+                                .foregroundColor(.gray)
+                        }
+                    }
                 }
                 
                 Spacer()
@@ -251,7 +276,8 @@ struct ScanQRButton: View {
             .shadow(color: Color.purple.opacity(0.1), radius: 10, y: 5)
         }
         .fullScreenCover(isPresented: $showQRScanner) {
-            BizzQRScannerView()
+            // FIXED: Now passes the business ID correctly
+            BizzQRScannerView(businessId: business.id ?? "")
         }
         .alert("Camera Permission Required", isPresented: $showPermissionAlert) {
             Button("Open Settings") {
@@ -262,6 +288,9 @@ struct ScanQRButton: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Please enable camera access in Settings to scan QR codes.")
+        }
+        .onAppear {
+            loadRedemptionStats()
         }
     }
     
@@ -283,4 +312,17 @@ struct ScanQRButton: View {
             break
         }
     }
+    
+    private func loadRedemptionStats() {
+        guard let businessId = business.id else { return }
+        
+        offerService.getRedemptionStats(for: businessId) { redeemed, pending in
+            DispatchQueue.main.async {
+                self.totalRedemptions = redeemed
+                self.pendingRedemptions = pending
+            }
+        }
+    }
 }
+
+
