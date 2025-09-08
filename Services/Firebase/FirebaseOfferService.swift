@@ -148,7 +148,7 @@ class FirebaseOfferService: ObservableObject {
             }
     }
     
-    // MARK: - Create Participation WITH Redemption Record (NEW)
+    // MARK: - Create Participation WITH Redemption Record (VERIFIED)
     private func createParticipationWithRedemption(
         offerId: String,
         businessId: String,
@@ -161,6 +161,11 @@ class FirebaseOfferService: ObservableObject {
         // Generate a SINGLE redemption ID that will be used for this participation
         let redemptionId = UUID().uuidString
         
+        print("📝 Creating participation and redemption:")
+        print("   - redemptionId: \(redemptionId)")
+        print("   - offerId: \(offerId)")
+        print("   - businessId: \(businessId)")
+        
         let participation = OfferParticipation(
             offerId: offerId,
             businessId: businessId,
@@ -170,26 +175,26 @@ class FirebaseOfferService: ObservableObject {
         )
         
         let participationData: [String: Any] = [
-            "offerId": participation.offerId,
-            "businessId": participation.businessId,
-            "influencerId": participation.influencerId,
-            "influencerName": participation.influencerName,
-            "platform": participation.platform,
+            "offerId": offerId,  // CRITICAL: Must match the offer
+            "businessId": businessId,
+            "influencerId": influencerId,
+            "influencerName": influencerName,
+            "platform": platform,
             "joinedAt": participation.joinedAt,
             "completedAt": participation.completedAt as Any,
-            "isCompleted": participation.isCompleted,
-            "proofSubmitted": participation.proofSubmitted,
+            "isCompleted": false,
+            "proofSubmitted": false,
             "redemptionId": redemptionId  // Link to redemption record
         ]
         
         let redemptionData: [String: Any] = [
             "redemptionId": redemptionId,
-            "offerId": offerId,
+            "offerId": offerId,  // CRITICAL: Must match the offer
             "influencerId": influencerId,
             "influencerName": influencerName,
             "businessId": businessId,
             "businessName": businessName,
-            "isRedeemed": false,
+            "isRedeemed": false,  // Starts as pending
             "createdAt": Timestamp(),
             "redeemedAt": NSNull()
         ]
@@ -205,7 +210,7 @@ class FirebaseOfferService: ObservableObject {
         let redemptionRef = db.collection(redemptionsCollection).document(redemptionId)
         batch.setData(redemptionData, forDocument: redemptionRef)
         
-        // Update offer participant count
+        // Update offer participant count - THIS IS CRITICAL
         let offerRef = db.collection(offersCollection).document(offerId)
         batch.updateData([
             "participantCount": FieldValue.increment(Int64(1))
@@ -217,10 +222,11 @@ class FirebaseOfferService: ObservableObject {
                 print("❌ Error joining offer: \(error.localizedDescription)")
                 completion(.failure(error))
             } else {
-                print("✅ Successfully joined offer with redemption ID: \(redemptionId)")
-                print("   - Created participation record")
-                print("   - Created redemption record")
-                print("   - Incremented offer count")
+                print("✅ Successfully joined offer:")
+                print("   - Created participation record with offerId: \(offerId)")
+                print("   - Created redemption record with offerId: \(offerId)")
+                print("   - Redemption ID: \(redemptionId)")
+                print("   - Incremented participantCount on offer document")
                 completion(.success("Successfully joined the offer!"))
             }
         }

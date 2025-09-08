@@ -235,6 +235,9 @@ struct BizzQRScannerView: View {
                     self.showSuccessView = true
                 }
                 
+                // Post notification for successful redemption
+                NotificationCenter.default.post(name: NSNotification.Name("OfferRedeemed"), object: nil)
+                
                 // Auto dismiss after 3 seconds
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                     self.dismiss()

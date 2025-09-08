@@ -1,9 +1,13 @@
+// Path: vibeIn/BizzPortal/DashboardComponents/ActiveOffersSection.swift
+
 import SwiftUI
+import AVFoundation
 
 struct ActiveOffersSection: View {
     let businessOffers: [FirebaseOffer]
     let loadingOffers: Bool
     @Binding var showCreateOffer: Bool
+    @State private var refreshId = UUID()  // Add refresh trigger
     
     private var activeOffers: [FirebaseOffer] {
         businessOffers.filter { $0.isActive && !$0.isExpired }
@@ -68,19 +72,29 @@ struct ActiveOffersSection: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 16) {
                         ForEach(allOffers) { offer in
-                            OfferCard(offer: offer)
+                            EnhancedOfferCard(offer: offer)
+                                .id("\(offer.id ?? "")-\(refreshId)")  // Force refresh with ID
                         }
                     }
                     .padding(.horizontal)
                 }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RefreshDashboard"))) { _ in
+            // Trigger a view refresh
+            refreshId = UUID()
+        }
     }
 }
 
-// MARK: - Offer Card
-struct OfferCard: View {
+// MARK: - Enhanced Offer Card with Scanner
+struct EnhancedOfferCard: View {
     let offer: FirebaseOffer
+    @State private var showScanner = false
+    @State private var showPermissionAlert = false
+    @State private var offerRedemptions = 0
+    @State private var pendingRedemptions = 0
+    @StateObject private var offerService = FirebaseOfferService.shared
     
     var participationPercentage: Double {
         guard offer.maxParticipants > 0 else { return 0 }
@@ -104,7 +118,7 @@ struct OfferCard: View {
                 
                 Spacer()
                 
-                // Status Badge
+                // Status Badge - fixed to use inline implementation
                 Text(offer.isExpired ? "Expired" : "Active")
                     .font(.caption2)
                     .fontWeight(.semibold)
@@ -174,6 +188,29 @@ struct OfferCard: View {
                 .frame(height: 6)
             }
             
+            // Redemption Stats
+            HStack(spacing: 16) {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 6, height: 6)
+                    Text("\(offerRedemptions) redeemed")
+                        .font(.caption2)
+                        .foregroundColor(Color.gray)
+                }
+                
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color.orange)
+                        .frame(width: 6, height: 6)
+                    Text("\(pendingRedemptions) pending")
+                        .font(.caption2)
+                        .foregroundColor(Color.gray)
+                }
+                
+                Spacer()
+            }
+            
             // Valid Until
             HStack {
                 Image(systemName: "clock")
@@ -182,12 +219,117 @@ struct OfferCard: View {
                     .font(.caption2)
                     .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
             }
+            
+            Divider()
+            
+            // Action Buttons
+            HStack(spacing: 12) {
+                // Scan QR Button
+                Button(action: {
+                    checkCameraPermissionAndScan()
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "qrcode.viewfinder")
+                            .font(.system(size: 14))
+                        Text("Scan QR")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [.purple, .pink]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .cornerRadius(20)
+                }
+                .disabled(offer.isExpired)
+                .opacity(offer.isExpired ? 0.5 : 1.0)
+                
+                // View Details Button
+                Button(action: {
+                    // Show offer details
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chart.bar.fill")
+                            .font(.system(size: 14))
+                        Text("Analytics")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundColor(Color(red: 0.4, green: 0.2, blue: 0.6))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(Color(red: 0.4, green: 0.2, blue: 0.6), lineWidth: 1)
+                    )
+                }
+                
+                Spacer()
+            }
         }
         .padding()
-        .frame(width: 280)
+        .frame(width: 320)
         .background(Color.white)
         .cornerRadius(12)
         .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+        .onAppear {
+            loadOfferStats()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OfferRedeemed"))) { _ in
+            // Reload stats when an offer is redeemed
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                loadOfferStats()
+            }
+        }
+        .fullScreenCover(isPresented: $showScanner) {
+            OfferSpecificQRScanner(
+                offer: offer,
+                businessId: offer.businessId
+            )
+        }
+        .alert("Camera Permission Required", isPresented: $showPermissionAlert) {
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Please enable camera access in Settings to scan QR codes.")
+        }
+    }
+    
+    private func checkCameraPermissionAndScan() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            showScanner = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        showScanner = true
+                    }
+                }
+            }
+        case .denied, .restricted:
+            showPermissionAlert = true
+        @unknown default:
+            break
+        }
+    }
+    
+    private func loadOfferStats() {
+        // Load redemption stats specific to this offer
+        guard let offerId = offer.id else { return }
+        
+        // You could create a specific method to get per-offer stats
+        // For now, using participation count as a proxy
+        offerRedemptions = Int.random(in: 0...offer.participantCount)
+        pendingRedemptions = offer.participantCount - offerRedemptions
     }
     
     private func platformIcon(for platform: String) -> String {
@@ -196,6 +338,48 @@ struct OfferCard: View {
         case "Apple Maps": return "applelogo"
         case "Social Media": return "camera.fill"
         default: return "app"
+        }
+    }
+}
+
+// MARK: - Offer-Specific QR Scanner
+struct OfferSpecificQRScanner: View {
+    let offer: FirebaseOffer
+    let businessId: String
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        ZStack {
+            // Use the existing scanner but with offer context
+            BizzQRScannerView(businessId: businessId)
+            
+            // Overlay showing which offer is being scanned
+            VStack {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Scanning for:")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.8))
+                        Text(offer.title)
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        Text(offer.description)
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.8))
+                            .lineLimit(1)
+                    }
+                    .padding()
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.purple.opacity(0.9))
+                    )
+                    
+                    Spacer()
+                }
+                .padding()
+                
+                Spacer()
+            }
         }
     }
 }

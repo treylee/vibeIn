@@ -3,6 +3,7 @@
 import SwiftUI
 import MapKit
 import AVFoundation
+import FirebaseFirestore  // Add Firestore import
 
 struct BusinessDashboardView: View {
     let business: FirebaseBusiness
@@ -142,6 +143,10 @@ struct BusinessDashboardView: View {
             print("🔄 Reloading offers after creation")
             loadBusinessOffers()
             showCreateOffer = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OfferRedeemed"))) { _ in
+            print("🔄 Reloading offers after redemption")
+            loadBusinessOffers()
         }
     }
     
@@ -324,5 +329,3 @@ struct ScanQRButton: View {
         }
     }
 }
-
-
