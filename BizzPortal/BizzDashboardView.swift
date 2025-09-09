@@ -3,7 +3,7 @@
 import SwiftUI
 import MapKit
 import AVFoundation
-import FirebaseFirestore  // Add Firestore import
+import FirebaseFirestore
 
 struct BusinessDashboardView: View {
     let business: FirebaseBusiness
@@ -15,6 +15,7 @@ struct BusinessDashboardView: View {
     @State private var vibesDropdownOpen = false
     @State private var selectedTimeframe = "This Week"
     @State private var hasInitialized = false
+    @State private var refreshTrigger = UUID()
     @EnvironmentObject var navigationState: BizzNavigationState
     
     var body: some View {
@@ -58,19 +59,20 @@ struct BusinessDashboardView: View {
                     // Quick Stats Overview
                     QuickStatsRow(business: navigationState.userBusiness ?? business)
                     
-                    // QR Scanner Button - FIXED: Pass the business parameter
-                    ScanQRButton(
-                        business: navigationState.userBusiness ?? business,
+                    // Simple QR Scanner Button - NO STATS
+                    SimpleScanQRButton(
+                        businessId: (navigationState.userBusiness ?? business).id ?? "",
                         showQRScanner: $showQRScanner
                     )
                     .padding(.horizontal)
                     
-                    // Active Offers Section
+                    // Active Offers Section - This tracks stats per offer
                     ActiveOffersSection(
                         businessOffers: businessOffers,
                         loadingOffers: loadingOffers,
                         showCreateOffer: $showCreateOffer
                     )
+                    .id(refreshTrigger)
                     
                     // Analytics Grid
                     AnalyticsGridView(
@@ -128,13 +130,11 @@ struct BusinessDashboardView: View {
             }
         }
         .onAppear {
-            // Only initialize once
             if !hasInitialized {
                 loadBusinessOffers()
                 setupMapRegion()
                 hasInitialized = true
                 
-                // Log current business state
                 let currentBusiness = navigationState.userBusiness ?? business
                 print("📊 Dashboard initialized for business: \(currentBusiness.name)")
             }
@@ -145,8 +145,9 @@ struct BusinessDashboardView: View {
             showCreateOffer = false
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OfferRedeemed"))) { _ in
-            print("🔄 Reloading offers after redemption")
+            print("🔄 Reloading after redemption - refreshing entire view")
             loadBusinessOffers()
+            refreshTrigger = UUID()
         }
     }
     
@@ -185,14 +186,11 @@ struct BusinessDashboardView: View {
     }
 }
 
-// MARK: - Scan QR Button Component (FIXED)
-struct ScanQRButton: View {
-    let business: FirebaseBusiness  // ADD THIS - receive business as parameter
+// MARK: - SIMPLE Scan QR Button (NO STATS - Just Scanner)
+struct SimpleScanQRButton: View {
+    let businessId: String
     @Binding var showQRScanner: Bool
     @State private var showPermissionAlert = false
-    @State private var totalRedemptions = 0
-    @State private var pendingRedemptions = 0
-    @StateObject private var offerService = FirebaseOfferService.shared
     
     var body: some View {
         Button(action: {
@@ -222,31 +220,15 @@ struct ScanQRButton: View {
                         )
                 }
                 
-                // Text and Stats
+                // Text ONLY - NO NUMBERS, NO STATS
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Scan QR Code")
                         .font(.system(size: 18, weight: .semibold, design: .rounded))
                         .foregroundColor(.black)
                     
-                    HStack(spacing: 12) {
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(Color.green)
-                                .frame(width: 6, height: 6)
-                            Text("\(totalRedemptions) redeemed")
-                                .font(.system(size: 11, design: .rounded))
-                                .foregroundColor(.gray)
-                        }
-                        
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(Color.orange)
-                                .frame(width: 6, height: 6)
-                            Text("\(pendingRedemptions) pending")
-                                .font(.system(size: 11, design: .rounded))
-                                .foregroundColor(.gray)
-                        }
-                    }
+                    Text("Redeem influencer offers")
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundColor(.gray)
                 }
                 
                 Spacer()
@@ -281,8 +263,7 @@ struct ScanQRButton: View {
             .shadow(color: Color.purple.opacity(0.1), radius: 10, y: 5)
         }
         .fullScreenCover(isPresented: $showQRScanner) {
-            // FIXED: Now passes the business ID correctly
-            BizzQRScannerView(businessId: business.id ?? "")
+            BizzQRScannerView(businessId: businessId)
         }
         .alert("Camera Permission Required", isPresented: $showPermissionAlert) {
             Button("Open Settings") {
@@ -293,9 +274,6 @@ struct ScanQRButton: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Please enable camera access in Settings to scan QR codes.")
-        }
-        .onAppear {
-            loadRedemptionStats()
         }
     }
     
@@ -317,15 +295,38 @@ struct ScanQRButton: View {
             break
         }
     }
-    
-    private func loadRedemptionStats() {
-        guard let businessId = business.id else { return }
-        
-        offerService.getRedemptionStats(for: businessId) { redeemed, pending in
-            DispatchQueue.main.async {
-                self.totalRedemptions = redeemed
-                self.pendingRedemptions = pending
-            }
-        }
+}
+
+// MARK: - Preview
+struct BusinessDashboardView_Previews: PreviewProvider {
+    static var previews: some View {
+        BusinessDashboardView(
+            business: FirebaseBusiness(
+                id: "test123",
+                name: "Test Restaurant",
+                address: "123 Main St",
+                placeID: "test",
+                category: "Restaurant",
+                offer: "Free appetizer",
+                createdAt: Timestamp(),
+                isVerified: true,
+                imageURL: nil,
+                videoURL: nil,
+                mediaType: nil,
+                phone: "(555) 123-4567",
+                hours: "9AM - 10PM",
+                website: "www.test.com",
+                rating: 4.5,
+                reviewCount: 127,
+                missionStatement: "Great food for everyone",
+                menuItems: nil,
+                latitude: 37.7749,
+                longitude: -122.4194,
+                mainCategory: "Food & Dining",
+                subtypes: ["Restaurant", "Fine Dining"],
+                customTags: []
+            )
+        )
+        .environmentObject(BizzNavigationState())
     }
 }
