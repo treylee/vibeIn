@@ -16,6 +16,7 @@ struct BusinessDashboardView: View {
     @State private var selectedTimeframe = "This Week"
     @State private var hasInitialized = false
     @State private var refreshTrigger = UUID()
+    @State private var showPremiumUpgrade = false
     @EnvironmentObject var navigationState: BizzNavigationState
     
     var body: some View {
@@ -45,7 +46,7 @@ struct BusinessDashboardView: View {
                                     .font(.system(size: 12))
                                     .foregroundColor(Color(red: 0.5, green: 0.4, blue: 0.6))
                                 
-                                Text("AI Powered insights updated in real-time")
+                                Text("Manage your business presence")
                                     .font(.caption)
                                     .foregroundColor(Color(red: 0.5, green: 0.5, blue: 0.6))
                             }
@@ -56,29 +57,20 @@ struct BusinessDashboardView: View {
                     .padding(.horizontal)
                     .padding(.top, 60)
                     
-                    // Quick Stats Overview
-                    QuickStatsRow(business: navigationState.userBusiness ?? business)
-                    
-                    // Simple QR Scanner Button - NO STATS
+                    // Simple QR Scanner Button
                     SimpleScanQRButton(
                         businessId: (navigationState.userBusiness ?? business).id ?? "",
                         showQRScanner: $showQRScanner
                     )
                     .padding(.horizontal)
                     
-                    // Active Offers Section - This tracks stats per offer
+                    // Active Offers Section
                     ActiveOffersSection(
                         businessOffers: businessOffers,
                         loadingOffers: loadingOffers,
                         showCreateOffer: $showCreateOffer
                     )
                     .id(refreshTrigger)
-                    
-                    // Analytics Grid
-                    AnalyticsGridView(
-                        business: navigationState.userBusiness ?? business,
-                        selectedTimeframe: $selectedTimeframe
-                    )
                     
                     // Business Details Section
                     BusinessDetailsSection(
@@ -111,6 +103,14 @@ struct BusinessDashboardView: View {
                         mapRegion: mapRegion
                     )
                     .padding(.horizontal)
+                    
+                    // PREMIUM ANALYTICS SECTION - AT BOTTOM
+                    PremiumAnalyticsSection(
+                        business: navigationState.userBusiness ?? business,
+                        selectedTimeframe: $selectedTimeframe,
+                        showPremiumUpgrade: $showPremiumUpgrade
+                    )
+                    .padding(.horizontal)
                     .padding(.bottom, 100)
                 }
             }
@@ -128,6 +128,9 @@ struct BusinessDashboardView: View {
                         }
                     }
             }
+        }
+        .sheet(isPresented: $showPremiumUpgrade) {
+            PremiumUpgradeModal()
         }
         .onAppear {
             if !hasInitialized {
@@ -186,7 +189,7 @@ struct BusinessDashboardView: View {
     }
 }
 
-// MARK: - SIMPLE Scan QR Button (NO STATS - Just Scanner)
+// MARK: - Simple Scan QR Button (NO STATS - Just Scanner)
 struct SimpleScanQRButton: View {
     let businessId: String
     @Binding var showQRScanner: Bool
@@ -220,7 +223,7 @@ struct SimpleScanQRButton: View {
                         )
                 }
                 
-                // Text ONLY - NO NUMBERS, NO STATS
+                // Text
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Scan QR Code")
                         .font(.system(size: 18, weight: .semibold, design: .rounded))
@@ -294,6 +297,312 @@ struct SimpleScanQRButton: View {
         @unknown default:
             break
         }
+    }
+}
+
+// MARK: - Premium Analytics Section
+struct PremiumAnalyticsSection: View {
+    let business: FirebaseBusiness
+    @Binding var selectedTimeframe: String
+    @Binding var showPremiumUpgrade: Bool
+    @State private var isPremium = false // Would come from subscription service
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            // Section Header with Premium Badge
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "crown.fill")
+                        .font(.system(size: 18))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.yellow, .orange],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    
+                    Text("Performance Analytics")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(red: 0.1, green: 0.1, blue: 0.2))
+                    
+                    Text("PREMIUM")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            LinearGradient(
+                                colors: [.yellow, .orange],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(4)
+                }
+                
+                Spacer()
+                
+                if !isPremium {
+                    Button(action: { showPremiumUpgrade = true }) {
+                        Text("Upgrade")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(
+                                LinearGradient(
+                                    colors: [.orange, .pink],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .cornerRadius(6)
+                    }
+                }
+            }
+            
+            // Locked Content Preview
+            ZStack {
+                // Blurred preview content
+                VStack(spacing: 16) {
+                    HStack(spacing: 12) {
+                        ForEach(0..<3, id: \.self) { _ in
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Circle()
+                                        .fill(Color.gray.opacity(0.3))
+                                        .frame(width: 20, height: 20)
+                                    Spacer()
+                                }
+                                
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.gray.opacity(0.2))
+                                    .frame(height: 24)
+                                
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.gray.opacity(0.15))
+                                    .frame(height: 12)
+                            }
+                            .padding()
+                            .background(Color.white.opacity(0.5))
+                            .cornerRadius(12)
+                        }
+                    }
+                    
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                        ForEach(0..<4, id: \.self) { _ in
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Circle()
+                                        .fill(Color.gray.opacity(0.3))
+                                        .frame(width: 20, height: 20)
+                                    Spacer()
+                                }
+                                
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.gray.opacity(0.2))
+                                    .frame(height: 28)
+                                
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Color.gray.opacity(0.15))
+                                    .frame(height: 12)
+                            }
+                            .padding()
+                            .background(Color.white.opacity(0.5))
+                            .cornerRadius(12)
+                        }
+                    }
+                }
+                .blur(radius: 8)
+                
+                // Lock Overlay
+                VStack(spacing: 20) {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 40))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.yellow, .orange],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                    
+                    VStack(spacing: 8) {
+                        Text("Unlock Premium Analytics")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.black)
+                        
+                        Text("Get detailed insights and real-time metrics")
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                            .multilineTextAlignment(.center)
+                    }
+                    
+                    Button(action: { showPremiumUpgrade = true }) {
+                        HStack {
+                            Image(systemName: "crown.fill")
+                            Text("Upgrade to Premium")
+                        }
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(
+                            LinearGradient(
+                                colors: [.orange, .pink],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(12)
+                        .shadow(color: .orange.opacity(0.3), radius: 10, y: 5)
+                    }
+                }
+                .padding(30)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color.white.opacity(0.95))
+                )
+            }
+            .frame(minHeight: 400)
+        }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white, Color.yellow.opacity(0.05)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.yellow.opacity(0.3), Color.orange.opacity(0.3)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+        )
+        .shadow(color: Color.orange.opacity(0.1), radius: 10, y: 5)
+    }
+}
+
+// MARK: - Premium Upgrade Modal
+struct PremiumUpgradeModal: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                LinearGradient(
+                    colors: [Color.orange.opacity(0.1), Color.pink.opacity(0.1)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(spacing: 30) {
+                        // Header
+                        VStack(spacing: 16) {
+                            Image(systemName: "crown.fill")
+                                .font(.system(size: 60))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.yellow, .orange],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                            
+                            Text("Upgrade to Premium")
+                                .font(.largeTitle)
+                                .fontWeight(.bold)
+                            
+                            Text("Unlock powerful analytics and insights")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
+                        .padding(.top, 20)
+                        
+                        // Features List
+                        VStack(spacing: 16) {
+                            FeatureRow(icon: "chart.line.uptrend.xyaxis", title: "Advanced Analytics", description: "Real-time performance metrics")
+                            FeatureRow(icon: "person.3.fill", title: "User Insights", description: "Track active users and engagement")
+                            FeatureRow(icon: "eye.fill", title: "View Tracking", description: "Monitor page views and reach")
+                            FeatureRow(icon: "arrow.triangle.turn.up.right.diamond.fill", title: "Conversion Metrics", description: "Measure your success rate")
+                        }
+                        .padding(.horizontal)
+                        
+                        // CTA Button
+                        Button(action: {
+                            // Handle subscription
+                        }) {
+                            Text("Start Free Trial")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(
+                                    LinearGradient(
+                                        colors: [.orange, .pink],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .cornerRadius(16)
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom, 30)
+                    }
+                }
+            }
+            .navigationBarItems(
+                trailing: Button("Close") { dismiss() }
+                    .foregroundColor(.purple)
+            )
+        }
+    }
+}
+
+// MARK: - Feature Row Helper
+struct FeatureRow: View {
+    let icon: String
+    let title: String
+    let description: String
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [.orange, .pink],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 40)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                Text(description)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            
+            Spacer()
+        }
+        .padding()
+        .background(Color.white)
+        .cornerRadius(12)
     }
 }
 
