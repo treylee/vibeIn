@@ -5,60 +5,253 @@ import SwiftUI
 struct InfluencerPortalView: View {
     @StateObject private var influencerService = FirebaseInfluencerService.shared
     @StateObject private var offerService = FirebaseOfferService.shared
-    @State private var selectedTab = 0
     @State private var influencerReviews: [InfluencerReview] = []
     @State private var isLoadingReviews = false
+    @State private var animateGradient = false
     @EnvironmentObject var navigationState: InfluencerNavigationState
     
     var body: some View {
         ZStack {
-            // Background gradient
-            LinearGradient(
-                gradient: Gradient(colors: [
-                    Color.purple.opacity(0.1),
-                    Color.pink.opacity(0.1),
-                    Color.orange.opacity(0.05)
-                ]),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            // Clean white background
+            Color.white
+                .ignoresSafeArea()
             
             if let influencer = influencerService.currentInfluencer {
-                VStack(spacing: 0) {
-                    // Header
-                    InfluencerPortalHeader(influencer: influencer)
-                    
-                    // Tab View
-                    InfluencerTabBar(selectedTab: $selectedTab)
-                    
-                    // Content
-                    TabView(selection: $selectedTab) {
-                        // Active Offers Tab
-                        InfluencerActiveOffersView()
-                            .environmentObject(navigationState)
-                            .tag(0)
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        // Enhanced Header with gradient accent
+                        InfluencerPortalHeader(influencer: influencer)
                         
-                        // Past Reviews Tab
-                        PastReviewsView(reviews: influencerReviews, isLoading: isLoadingReviews)
-                            .tag(1)
-                        
-                        // Analytics Tab
-                        InfluencerAnalyticsView(influencer: influencer)
-                            .tag(2)
+                        // Main Content with improved design
+                        VStack(spacing: 32) {
+                            // Active Offers Section with card design
+                            VStack(alignment: .leading, spacing: 20) {
+                                // Section Header with animated gradient
+                                HStack {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .fill(
+                                                LinearGradient(
+                                                    colors: [.purple.opacity(0.1), .pink.opacity(0.1)],
+                                                    startPoint: animateGradient ? .topLeading : .bottomTrailing,
+                                                    endPoint: animateGradient ? .bottomTrailing : .topLeading
+                                                )
+                                            )
+                                            .frame(width: 44, height: 44)
+                                        
+                                        Image(systemName: "gift.fill")
+                                            .font(.system(size: 22))
+                                            .foregroundStyle(
+                                                LinearGradient(
+                                                    colors: [.purple, .pink],
+                                                    startPoint: .topLeading,
+                                                    endPoint: .bottomTrailing
+                                                )
+                                            )
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Active Offers")
+                                            .font(.title2)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.black)
+                                        
+                                        Text("Your current collaborations")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    // Decorative element
+                                    Image(systemName: "arrow.right.circle")
+                                        .font(.title3)
+                                        .foregroundStyle(
+                                            LinearGradient(
+                                                colors: [.purple.opacity(0.6), .pink.opacity(0.6)],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                }
+                                .padding(.horizontal, 20)
+                                
+                                // Content card with subtle shadow
+                                VStack {
+                                    InfluencerActiveOffersView()
+                                        .environmentObject(navigationState)
+                                }
+                                .background(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .fill(Color.gray.opacity(0.02))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(Color.gray.opacity(0.08), lineWidth: 1)
+                                )
+                                .padding(.horizontal, 16)
+                            }
+                            .padding(.top, 24)
+                            
+                            // Stylish Divider
+                            HStack(spacing: 16) {
+                                Rectangle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color.clear, Color.purple.opacity(0.2)],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .frame(height: 1)
+                                
+                                Image(systemName: "sparkles")
+                                    .font(.caption)
+                                    .foregroundColor(.purple.opacity(0.3))
+                                
+                                Rectangle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color.orange.opacity(0.2), Color.clear],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                                    .frame(height: 1)
+                            }
+                            .padding(.horizontal, 40)
+                            
+                            // Past Reviews Section with enhanced design (centered)
+                            VStack(spacing: 20) {
+                                // Section Header with animated gradient (centered)
+                                HStack {
+                                    Spacer()
+                                    
+                                    HStack(spacing: 12) {
+                                        ZStack {
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .fill(
+                                                    LinearGradient(
+                                                        colors: [.orange.opacity(0.1), .yellow.opacity(0.1)],
+                                                        startPoint: animateGradient ? .bottomTrailing : .topLeading,
+                                                        endPoint: animateGradient ? .topLeading : .bottomTrailing
+                                                    )
+                                                )
+                                                .frame(width: 44, height: 44)
+                                            
+                                            Image(systemName: "star.fill")
+                                                .font(.system(size: 22))
+                                                .foregroundStyle(
+                                                    LinearGradient(
+                                                        colors: [.orange, .yellow],
+                                                        startPoint: .topLeading,
+                                                        endPoint: .bottomTrailing
+                                                    )
+                                                )
+                                        }
+                                        
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Past Reviews")
+                                                .font(.title2)
+                                                .fontWeight(.bold)
+                                                .foregroundColor(.black)
+                                            
+                                            Text("Your review history")
+                                                .font(.caption)
+                                                .foregroundColor(.gray)
+                                        }
+                                        
+                                        // Review count badge
+                                        if !influencerReviews.isEmpty {
+                                            Text("\(influencerReviews.count)")
+                                                .font(.caption)
+                                                .fontWeight(.semibold)
+                                                .foregroundColor(.white)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 4)
+                                                .background(
+                                                    Capsule()
+                                                        .fill(
+                                                            LinearGradient(
+                                                                colors: [.orange, .yellow],
+                                                                startPoint: .leading,
+                                                                endPoint: .trailing
+                                                            )
+                                                        )
+                                                )
+                                        }
+                                    }
+                                    
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 20)
+                                
+                                // Content with enhanced styling
+                                VStack {
+                                    PastReviewsView(reviews: influencerReviews, isLoading: isLoadingReviews)
+                                }
+                                .background(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .fill(Color.gray.opacity(0.02))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(Color.gray.opacity(0.08), lineWidth: 1)
+                                )
+                                .padding(.horizontal, 16)
+                            }
+                            
+                            // Bottom decoration
+                            VStack(spacing: 12) {
+                                Image(systemName: "chevron.down")
+                                    .font(.caption)
+                                    .foregroundColor(.gray.opacity(0.3))
+                                
+                                Text("You're all caught up!")
+                                    .font(.caption)
+                                    .foregroundColor(.gray.opacity(0.5))
+                            }
+                            .padding(.top, 20)
+                            
+                            // Extra padding at bottom for navigation bar
+                            Color.clear
+                                .frame(height: 120)
+                        }
                     }
-                    .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+                }
+                .onAppear {
+                    withAnimation(.easeInOut(duration: 3).repeatForever(autoreverses: true)) {
+                        animateGradient.toggle()
+                    }
                 }
             } else {
-                // Loading state
-                VStack(spacing: 20) {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .purple))
-                        .scaleEffect(1.5)
+                // Enhanced loading state
+                VStack(spacing: 24) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [.purple.opacity(0.1), .pink.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 80, height: 80)
+                        
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .purple))
+                            .scaleEffect(1.5)
+                    }
                     
-                    Text("Creating your profile...")
-                        .font(.headline)
-                        .foregroundColor(.purple)
+                    VStack(spacing: 8) {
+                        Text("Setting up your portal")
+                            .font(.headline)
+                            .foregroundColor(.black)
+                        
+                        Text("Just a moment...")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                    }
                 }
             }
         }
@@ -78,110 +271,259 @@ struct InfluencerPortalView: View {
     }
 }
 
-// MARK: - Header
+// MARK: - Enhanced Header with Better Aesthetics
 struct InfluencerPortalHeader: View {
     let influencer: FirebaseInfluencer
+    @State private var showSparkle = false
     
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Welcome back,")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                    
-                    HStack(spacing: 8) {
-                        Text(influencer.userName)
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.black)
+            // Gradient accent line at top
+            LinearGradient(
+                colors: [.purple, .pink, .orange],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(height: 2)
+            .opacity(0.8)
+            
+            VStack(spacing: 20) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 6) {
+                            Text("Welcome back,")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                            
+                            Image(systemName: "hand.wave.fill")
+                                .font(.subheadline)
+                                .foregroundColor(.orange.opacity(0.8))
+                                .rotationEffect(.degrees(showSparkle ? 10 : -10))
+                                .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: showSparkle)
+                        }
                         
-                        if influencer.isVerified {
-                            Image(systemName: "checkmark.seal.fill")
-                                .foregroundColor(.blue)
-                                .font(.system(size: 18))
+                        HStack(spacing: 10) {
+                            Text(influencer.userName)
+                                .font(.system(size: 28, weight: .bold, design: .rounded))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.black, .black.opacity(0.8)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                            
+                            if influencer.isVerified {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.blue.opacity(0.1))
+                                        .frame(width: 28, height: 28)
+                                    
+                                    Image(systemName: "checkmark.seal.fill")
+                                        .foregroundStyle(
+                                            LinearGradient(
+                                                colors: [.blue, .cyan],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                        .font(.system(size: 18))
+                                }
+                            }
+                        }
+                        
+                        // Stats pills with enhanced design
+                        HStack(spacing: 10) {
+                            StatPill(
+                                icon: "person.2.fill",
+                                text: influencer.displayFollowers,
+                                colors: [.purple, .pink]
+                            )
+                            
+                            StatPill(
+                                icon: "heart.fill",
+                                text: influencer.engagementRateDisplay,
+                                colors: [.pink, .red]
+                            )
+                            
+                            StatPill(
+                                icon: "app.badge",
+                                text: influencer.mainPlatform,
+                                colors: [.blue, .cyan]
+                            )
                         }
                     }
                     
-                    HStack(spacing: 12) {
-                        Label(influencer.displayFollowers, systemImage: "person.2.fill")
-                            .font(.caption)
-                            .foregroundColor(.purple)
+                    Spacer()
+                    
+                    // Enhanced profile image
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [.purple.opacity(0.3), .pink.opacity(0.3)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 75, height: 75)
+                            .blur(radius: 10)
                         
-                        Label(influencer.engagementRateDisplay, systemImage: "heart.fill")
-                            .font(.caption)
-                            .foregroundColor(.pink)
-                        
-                        Label(influencer.mainPlatform, systemImage: "app.badge")
-                            .font(.caption)
-                            .foregroundColor(.blue)
+                        AsyncImage(url: URL(string: influencer.profileImageURL ?? "")) { image in
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            Circle()
+                                .fill(Color.gray.opacity(0.2))
+                                .overlay(
+                                    Image(systemName: "person.fill")
+                                        .foregroundColor(.gray)
+                                )
+                        }
+                        .frame(width: 65, height: 65)
+                        .clipShape(Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(
+                                    LinearGradient(
+                                        colors: [.purple, .pink],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 2.5
+                                )
+                        )
+                        .shadow(color: .purple.opacity(0.2), radius: 8, x: 0, y: 4)
                     }
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
                 
-                Spacer()
-                
-                // Profile image
-                AsyncImage(url: URL(string: influencer.profileImageURL ?? "")) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
-                        .overlay(
-                            Image(systemName: "person.fill")
-                                .foregroundColor(.gray)
-                        )
+                // Enhanced Quick Stats with cards
+                HStack(spacing: 12) {
+                    EnhancedStatCard(
+                        value: "\(influencer.completedOffers)",
+                        label: "Completed",
+                        icon: "checkmark.circle.fill",
+                        color: .green,
+                        bgGradient: [.green.opacity(0.1), .mint.opacity(0.1)]
+                    )
+                    
+                    EnhancedStatCard(
+                        value: "\(influencer.totalReviews)",
+                        label: "Reviews",
+                        icon: "star.circle.fill",
+                        color: .orange,
+                        bgGradient: [.orange.opacity(0.1), .yellow.opacity(0.1)]
+                    )
+                    
+                    EnhancedStatCard(
+                        value: "\(influencer.joinedOffers)",
+                        label: "Joined",
+                        icon: "person.crop.circle.badge.checkmark",
+                        color: .purple,
+                        bgGradient: [.purple.opacity(0.1), .pink.opacity(0.1)]
+                    )
                 }
-                .frame(width: 60, height: 60)
-                .clipShape(Circle())
-                .overlay(
-                    Circle()
-                        .stroke(
-                            LinearGradient(
-                                colors: [.purple, .pink],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 2
-                        )
-                )
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
             }
-            .padding(.horizontal)
-            .padding(.top, 50)
-            .padding(.bottom, 16)
-            
-            // Quick Stats
-            HStack(spacing: 0) {
-                QuickStatItem(
-                    value: "\(influencer.completedOffers)",
-                    label: "Completed",
-                    color: .green
-                )
-                
-                Divider()
-                    .frame(height: 30)
-                
-                QuickStatItem(
-                    value: "\(influencer.totalReviews)",
-                    label: "Reviews",
-                    color: .blue
-                )
-                
-                Divider()
-                    .frame(height: 30)
-                
-                QuickStatItem(
-                    value: "\(influencer.joinedOffers)",
-                    label: "Joined",
-                    color: .purple
-                )
-            }
-            .padding(.vertical, 12)
-            .background(Color.gray.opacity(0.05))
+            .background(Color.white)
         }
-        .background(Color.white.opacity(0.95))
-        .shadow(color: Color.black.opacity(0.05), radius: 5, y: 2)
+        .background(Color.white)
+        .shadow(color: Color.black.opacity(0.05), radius: 10, y: 5)
+        .onAppear {
+            showSparkle = true
+        }
+    }
+}
+
+// MARK: - Stat Pill Component
+struct StatPill: View {
+    let icon: String
+    let text: String
+    let colors: [Color]
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 11))
+            Text(text)
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundStyle(
+            LinearGradient(
+                colors: colors,
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(
+            Capsule()
+                .fill(
+                    LinearGradient(
+                        colors: colors.map { $0.opacity(0.1) },
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+        )
+        .overlay(
+            Capsule()
+                .stroke(
+                    LinearGradient(
+                        colors: colors.map { $0.opacity(0.2) },
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ),
+                    lineWidth: 1
+                )
+        )
+    }
+}
+
+// MARK: - Enhanced Stat Card
+struct EnhancedStatCard: View {
+    let value: String
+    let label: String
+    let icon: String
+    let color: Color
+    let bgGradient: [Color]
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(
+                        LinearGradient(
+                            colors: bgGradient,
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(height: 70)
+                
+                VStack(spacing: 6) {
+                    HStack(spacing: 6) {
+                        Image(systemName: icon)
+                            .font(.system(size: 16))
+                            .foregroundColor(color)
+                        
+                        Text(value)
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundColor(.black)
+                    }
+                    
+                    Text(label)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -205,88 +547,13 @@ struct QuickStatItem: View {
     }
 }
 
-// MARK: - Tab Bar
-struct InfluencerTabBar: View {
-    @Binding var selectedTab: Int
-    
-    var body: some View {
-        HStack(spacing: 0) {
-            TabBarButton(
-                title: "Active Offers",
-                icon: "gift.fill",
-                isSelected: selectedTab == 0,
-                action: { selectedTab = 0 }
-            )
-            
-            TabBarButton(
-                title: "Past Reviews",
-                icon: "star.fill",
-                isSelected: selectedTab == 1,
-                action: { selectedTab = 1 }
-            )
-            
-            TabBarButton(
-                title: "Analytics",
-                icon: "chart.line.uptrend.xyaxis",
-                isSelected: selectedTab == 2,
-                action: { selectedTab = 2 }
-            )
-        }
-        .background(Color.white)
-        .overlay(
-            Rectangle()
-                .fill(Color.gray.opacity(0.2))
-                .frame(height: 1),
-            alignment: .bottom
-        )
-    }
-}
-
-struct TabBarButton: View {
-    let title: String
-    let icon: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.system(size: 20))
-                    .foregroundColor(isSelected ? .purple : .gray)
-                
-                Text(title)
-                    .font(.caption)
-                    .fontWeight(isSelected ? .semibold : .regular)
-                    .foregroundColor(isSelected ? .purple : .gray)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(
-                Rectangle()
-                    .fill(Color.purple.opacity(isSelected ? 0.1 : 0))
-            )
-            .overlay(
-                Rectangle()
-                    .fill(Color.purple)
-                    .frame(height: 2)
-                    .opacity(isSelected ? 1 : 0),
-                alignment: .bottom
-            )
-        }
-    }
-}
-
-// Keep the existing ActiveOfferCard implementation since it's still referenced
-// The new implementation is in InfluencerActiveOffersView.swift
-
+// Keep the existing ActiveOfferCard and other components...
 struct ActiveOfferCard: View {
     let offer: FirebaseOffer
     @State private var navigateToDetail = false
     @EnvironmentObject var navigationState: InfluencerNavigationState
     
     var body: some View {
-        // CHANGED: Navigate to InfluencerRestaurantDetailView instead of OfferDetailView
         NavigationLink(destination: InfluencerRestaurantDetailView(offer: offer)
             .environmentObject(navigationState)
         ) {

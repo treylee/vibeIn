@@ -671,4 +671,9 @@ struct InfluencerVibeEmptyState: View {
     }
 }
 
-// Note: VibeEvent model is defined in InfluencerView.swift
+struct VibeEvent: Identifiable {
+    let id = UUID()
+    let name: String
+    let location: String
+    let date: String
+}
