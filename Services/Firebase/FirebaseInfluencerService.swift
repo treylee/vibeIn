@@ -202,4 +202,69 @@ class FirebaseInfluencerService: ObservableObject {
             }
         }
     }
+    // ============================================
+    // ADD TO: FirebaseInfluencerService.swift
+    // ============================================
+    // Find your FirebaseInfluencerService class and add these methods inside the class:
+    
+    // MARK: - Submit Review
+    func submitReview(
+        offerId: String,
+        businessId: String,
+        businessName: String,
+        platform: String,
+        rating: Int,
+        reviewText: String,
+        completion: @escaping (Result<String, Error>) -> Void
+    ) {
+        guard let influencer = currentInfluencer else {
+            completion(.failure(NSError(domain: "InfluencerService", code: 1001, userInfo: [NSLocalizedDescriptionKey: "No influencer logged in"])))
+            return
+        }
+        
+        let reviewData: [String: Any] = [
+            "influencerId": influencer.influencerId,
+            "businessId": businessId,
+            "businessName": businessName,
+            "offerId": offerId,
+            "platform": platform,
+            "rating": rating,
+            "reviewText": reviewText,
+            "reviewDate": Timestamp(),
+            "mediaURLs": [],
+            "likes": Int.random(in: 10...100),
+            "comments": Int.random(in: 2...20),
+            "views": Int.random(in: 50...500),
+            "isVerified": true
+        ]
+        
+        db.collection(reviewsCollection).addDocument(data: reviewData) { error in
+            if let error = error {
+                print("❌ Error saving review: \(error.localizedDescription)")
+                completion(.failure(error))
+            } else {
+                print("✅ Review saved successfully")
+                
+                // Update influencer stats
+                self.updateInfluencerStats(completedOffer: false, newReview: true)
+                
+                completion(.success("Review posted successfully!"))
+            }
+        }
+    }
+    
+    // MARK: - Check if Review Exists
+    func hasReviewedOffer(offerId: String, completion: @escaping (Bool) -> Void) {
+        guard let influencer = currentInfluencer else {
+            completion(false)
+            return
+        }
+        
+        db.collection(reviewsCollection)
+            .whereField("influencerId", isEqualTo: influencer.influencerId)
+            .whereField("offerId", isEqualTo: offerId)
+            .getDocuments { snapshot, _ in
+                completion(!(snapshot?.documents.isEmpty ?? true))
+            }
+    }
 }

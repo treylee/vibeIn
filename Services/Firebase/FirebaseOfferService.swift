@@ -529,4 +529,47 @@ class FirebaseOfferService: ObservableObject {
                 }
             }
     }
+
+    func getCompletedOffersForInfluencer(influencerId: String, completion: @escaping ([FirebaseOffer]) -> Void) {
+        print("🔍 Getting completed offers for influencer: \(influencerId)")
+        
+        // Get all participations for this influencer that ARE completed
+        db.collection(participationsCollection)
+            .whereField("influencerId", isEqualTo: influencerId)
+            .whereField("isCompleted", isEqualTo: true)
+            .getDocuments { [weak self] snapshot, error in
+                if let error = error {
+                    print("❌ Error fetching completed participations: \(error.localizedDescription)")
+                    completion([])
+                    return
+                }
+                
+                let offerIds = snapshot?.documents.compactMap { $0.data()["offerId"] as? String } ?? []
+                
+                if offerIds.isEmpty {
+                    print("📭 No completed offers found")
+                    completion([])
+                    return
+                }
+                
+                // Fetch the actual offers
+                self?.db.collection(self?.offersCollection ?? "offers")
+                    .whereField(FieldPath.documentID(), in: offerIds)
+                    .getDocuments { snapshot, error in
+                        if let error = error {
+                            print("❌ Error fetching offers: \(error.localizedDescription)")
+                            completion([])
+                            return
+                        }
+                        
+                        let offers = snapshot?.documents.compactMap { document in
+                            try? document.data(as: FirebaseOffer.self)
+                        } ?? []
+                        
+                        print("✅ Found \(offers.count) completed offers for influencer")
+                        completion(offers)
+                    }
+            }
+    }
 }
+
