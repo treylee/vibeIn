@@ -12,6 +12,7 @@ struct InfluencerActiveOffersView: View {
     @State private var isLoadingJoined = true
     @State private var isLoadingMessages = true
     @State private var selectedSegment = 0
+    @State private var hasLoadedData = false  // ADDED THIS
     @EnvironmentObject var navigationState: InfluencerNavigationState
     
     var body: some View {
@@ -59,8 +60,12 @@ struct InfluencerActiveOffersView: View {
             }
         }
         .onAppear {
-            loadOffers()
-            loadVibeMessages()
+            // Only load once
+            if !hasLoadedData {
+                loadOffers()
+                loadVibeMessages()
+                hasLoadedData = true
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OfferJoined"))) { _ in
             // Reload offers when a new one is joined
@@ -106,7 +111,6 @@ struct InfluencerActiveOffersView: View {
     }
 }
 
-// MARK: - Vibe Message Card
 struct VibeMessageCard: View {
     let message: VibeMessage
     @State private var business: FirebaseBusiness?

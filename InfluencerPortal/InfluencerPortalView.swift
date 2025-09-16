@@ -2,6 +2,7 @@
 
 import SwiftUI
 
+
 struct InfluencerPortalView: View {
     @StateObject private var influencerService = FirebaseInfluencerService.shared
     @StateObject private var offerService = FirebaseOfferService.shared
@@ -14,6 +15,7 @@ struct InfluencerPortalView: View {
     @State private var showReviewSheet = false
     @State private var selectedOfferForReview: FirebaseOffer?
     @EnvironmentObject var navigationState: InfluencerNavigationState
+    @State private var hasLoadedData = false
     
     var body: some View {
         ZStack {
@@ -254,8 +256,10 @@ struct InfluencerPortalView: View {
                     }
                 }
                 .onAppear {
-                    withAnimation(.easeInOut(duration: 3).repeatForever(autoreverses: true)) {
-                        animateGradient.toggle()
+                    if !animateGradient {
+                        withAnimation(.easeInOut(duration: 3).repeatForever(autoreverses: true)) {
+                            animateGradient.toggle()
+                        }
                     }
                 }
             } else {
@@ -290,8 +294,20 @@ struct InfluencerPortalView: View {
             }
         }
         .onAppear {
-            loadInfluencerReviews()
-            loadCompletedOffers()
+            // Only load if this tab is selected AND we haven't loaded yet
+            if navigationState.selectedTab == .portal && !hasLoadedData {
+                loadInfluencerReviews()
+                loadCompletedOffers()
+                hasLoadedData = true
+            }
+        }
+        .onChange(of: navigationState.selectedTab) { oldValue, newValue in
+            // Load data when portal tab is selected for the first time
+            if newValue == .portal && !hasLoadedData {
+                loadInfluencerReviews()
+                loadCompletedOffers()
+                hasLoadedData = true
+            }
         }
         .sheet(isPresented: $showReviewSheet) {
             if let offer = selectedOfferForReview,
@@ -330,7 +346,6 @@ struct InfluencerPortalView: View {
         }
     }
 }
-
 // MARK: - Past Offers Tab View
 struct PastOffersTabView: View {
     let completedOffers: [FirebaseOffer]
