@@ -30,6 +30,22 @@ struct InfluencerProfileView: View {
                     AccountDetailsSection(influencer: influencer)
                 }
                 .padding(.horizontal)
+                
+                // Bottom decoration (similar to InfluencerPortalView)
+                VStack(spacing: 12) {
+                    Image(systemName: "chevron.down")
+                        .font(.caption)
+                        .foregroundColor(.gray.opacity(0.3))
+                    
+                    Text("You're all caught up!")
+                        .font(.caption)
+                        .foregroundColor(.gray.opacity(0.5))
+                }
+                .padding(.top, 20)
+                
+                // Extra padding at bottom for navigation bar
+                Color.clear
+                    .frame(height: 120)
             }
             .padding(.top, 60)
         }
