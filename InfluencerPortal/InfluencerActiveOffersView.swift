@@ -3,7 +3,7 @@
 import SwiftUI
 import FirebaseFirestore
 
-// MARK: - Active Offers View (Updated to show joined offers and vibe messages)
+// MARK: - Active Offers View (Updated with Premium Badge)
 struct InfluencerActiveOffersView: View {
     @StateObject private var offerService = FirebaseOfferService.shared
     @StateObject private var influencerService = FirebaseInfluencerService.shared
@@ -12,18 +12,118 @@ struct InfluencerActiveOffersView: View {
     @State private var isLoadingJoined = true
     @State private var isLoadingMessages = true
     @State private var selectedSegment = 0
-    @State private var hasLoadedData = false  // ADDED THIS
+    @State private var hasLoadedData = false
+    @State private var isPremium = false  // ADDED: Premium status (default false)
     @EnvironmentObject var navigationState: InfluencerNavigationState
     
     var body: some View {
         VStack(spacing: 0) {
-            // Segment Control
-            Picker("Offers", selection: $selectedSegment) {
-                Text("My Active Offers").tag(0)
-                Text("Vibe Messages").tag(1)
+            // Custom Segment Control with Premium Badge
+            HStack(spacing: 0) {
+                // My Active Offers Tab
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        selectedSegment = 0
+                    }
+                }) {
+                    VStack(spacing: 4) {
+                        Text("My Active Offers")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(selectedSegment == 0 ? .purple : .gray)
+                        
+                        Rectangle()
+                            .fill(selectedSegment == 0 ?
+                                LinearGradient(colors: [.purple, .pink], startPoint: .leading, endPoint: .trailing) :
+                                LinearGradient(colors: [Color.clear], startPoint: .leading, endPoint: .trailing)
+                            )
+                            .frame(height: 2)
+                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedSegment)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                
+                // Vibe Messages Tab with Premium Badge
+                Button(action: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                        selectedSegment = 1
+                    }
+                }) {
+                    VStack(spacing: 4) {
+                        HStack(spacing: 6) {
+                            Text("Vibe Messages")
+                                .font(.system(size: 14, weight: .semibold))
+                            
+                            if !isPremium {
+                                // Premium Badge
+                                HStack(spacing: 2) {
+                                    Image(systemName: "crown.fill")
+                                        .font(.system(size: 10, weight: .medium))
+                                        .foregroundStyle(
+                                            LinearGradient(
+                                                colors: [.yellow, .orange],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                    
+                                    Text("PRO")
+                                        .font(.system(size: 9, weight: .bold, design: .rounded))
+                                        .foregroundStyle(
+                                            LinearGradient(
+                                                colors: [.orange, .yellow],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                }
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(
+                                    Capsule()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [
+                                                    Color.yellow.opacity(0.15),
+                                                    Color.orange.opacity(0.15)
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                )
+                                .overlay(
+                                    Capsule()
+                                        .stroke(
+                                            LinearGradient(
+                                                colors: [
+                                                    Color.yellow.opacity(0.4),
+                                                    Color.orange.opacity(0.4)
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ),
+                                            lineWidth: 0.5
+                                        )
+                                )
+                                .shadow(color: .yellow.opacity(0.2), radius: 2, x: 0, y: 1)
+                            }
+                        }
+                        .foregroundColor(selectedSegment == 1 ? .purple : .gray)
+                        
+                        Rectangle()
+                            .fill(selectedSegment == 1 ?
+                                LinearGradient(colors: [.purple, .pink], startPoint: .leading, endPoint: .trailing) :
+                                LinearGradient(colors: [Color.clear], startPoint: .leading, endPoint: .trailing)
+                            )
+                            .frame(height: 2)
+                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedSegment)
+                    }
+                }
+                .frame(maxWidth: .infinity)
             }
-            .pickerStyle(SegmentedPickerStyle())
-            .padding()
+            .padding(.horizontal)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
             
             ScrollView {
                 VStack(spacing: 20) {
@@ -42,8 +142,12 @@ struct InfluencerActiveOffersView: View {
                             }
                         }
                     } else {
-                        // Show vibe messages
-                        if isLoadingMessages {
+                        // Show vibe messages or premium prompt
+                        if !isPremium {
+                            // ADDED: Premium Feature Display (from separate component)
+                            PremiumVibeMessagesPrompt()
+                                .padding(.top, 40)
+                        } else if isLoadingMessages {
                             ProgressView("Loading messages...")
                                 .padding(.top, 60)
                         } else if vibeMessages.isEmpty {
@@ -63,13 +167,22 @@ struct InfluencerActiveOffersView: View {
             // Only load once
             if !hasLoadedData {
                 loadOffers()
-                loadVibeMessages()
+                // Only load messages if premium
+                if isPremium {
+                    loadVibeMessages()
+                }
                 hasLoadedData = true
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OfferJoined"))) { _ in
             // Reload offers when a new one is joined
             loadOffers()
+        }
+        .onChange(of: selectedSegment) { oldValue, newValue in
+            // Load messages when switching to messages tab if premium
+            if newValue == 1 && isPremium && vibeMessages.isEmpty {
+                loadVibeMessages()
+            }
         }
     }
     
@@ -111,6 +224,7 @@ struct InfluencerActiveOffersView: View {
     }
 }
 
+// MARK: - Vibe Message Card
 struct VibeMessageCard: View {
     let message: VibeMessage
     @State private var business: FirebaseBusiness?
@@ -656,7 +770,6 @@ struct InfluencerJoinedOfferCard: View {
         }
     }
 }
-
 
 
 // MARK: - Empty Joined Offers State
