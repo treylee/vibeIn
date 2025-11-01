@@ -43,8 +43,8 @@ struct LoginView: View {
                 )
             }
             .navigationDestination(isPresented: $navigateInfluencer) {
-                // UPDATED: Navigate to InfluencerNavigationContainer
-                InfluencerNavigationContainer()
+                // Navigate to Influencer Signup Flow
+                InfluencerSignupView()
                     .navigationBarHidden(true)
             }
             .navigationDestination(isPresented: $navigateBizz) {

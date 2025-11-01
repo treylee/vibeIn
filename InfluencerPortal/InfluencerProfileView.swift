@@ -5,13 +5,42 @@ import SwiftUI
 struct InfluencerProfileView: View {
     let influencer: FirebaseInfluencer
     @State private var selectedSection = 0
-    
+    @State private var showEditProfile = false
+
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
+                // Edit Button
+                HStack {
+                    Spacer()
+                    Button(action: { showEditProfile = true }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 14))
+                            Text("Edit Profile")
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            LinearGradient(
+                                colors: [.purple, .pink],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(20)
+                        .shadow(color: Color.purple.opacity(0.3), radius: 5, y: 2)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.top, 8)
+
                 // Profile Header
                 ProfileHeaderView(influencer: influencer)
-                
+
                 // Stats Overview
                 StatsOverviewView(influencer: influencer)
                 
@@ -50,6 +79,9 @@ struct InfluencerProfileView: View {
             .padding(.top, 60)
         }
         .ignoresSafeArea(edges: .top)
+        .sheet(isPresented: $showEditProfile) {
+            InfluencerEditProfileView(influencer: influencer)
+        }
     }
 }
 
@@ -554,7 +586,7 @@ struct FlowLayout: Layout {
             var x: CGFloat = 0
             var y: CGFloat = 0
             var lineHeight: CGFloat = 0
-            
+                
             for subview in subviews {
                 let size = subview.sizeThatFits(.unspecified)
                 

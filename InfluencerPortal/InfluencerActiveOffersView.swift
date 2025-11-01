@@ -186,13 +186,35 @@ struct InfluencerActiveOffersView: View {
         }
     }
     
+    // In InfluencerActiveOffersView, update the loadOffers function:
+
     private func loadOffers() {
         guard let influencer = influencerService.currentInfluencer else { return }
         
         // Load joined offers
         isLoadingJoined = true
+        
+        // Create mock Hash Kitchen offer
+        var mockHashKitchenOffer = FirebaseOffer(
+            businessId: "test-business-hash",
+            businessName: "Hash Kitchen",
+            businessAddress: "123 Main St, Phoenix, AZ 85001",
+            title: "Free Appetizer Special",
+            description: "Free appetizer with any entree purchase - Try our famous hash browns!",
+            platforms: ["Google", "Instagram"],
+            validUntil: Timestamp(date: Date().addingTimeInterval(7 * 24 * 60 * 60)), // 7 days from now
+            isActive: true,
+            participantCount: 5,
+            maxParticipants: 20
+        )
+        mockHashKitchenOffer.id = "mock-hash-kitchen-active"
+        
         offerService.getInfluencerActiveOffers(influencerId: influencer.influencerId) { offers in
-            self.joinedOffers = offers
+            // Add mock offer to the beginning of the real offers
+            var allOffers = [mockHashKitchenOffer]
+            allOffers.append(contentsOf: offers)
+            
+            self.joinedOffers = allOffers
             self.isLoadingJoined = false
         }
     }
@@ -589,12 +611,13 @@ struct EmptyVibeMessagesState: View {
     }
 }
 
-// MARK: - Influencer Joined Offer Card
+// MARK: - Influencer Joined Offer Card (COMPLETE REPLACEMENT)
 struct InfluencerJoinedOfferCard: View {
     let offer: FirebaseOffer
     @EnvironmentObject var navigationState: InfluencerNavigationState
     
     @State private var showQRCode = false
+    @State private var showCompletionView = false  // ADD THIS
     @State private var isRedeemed = false
     @State private var checkingStatus = true
     @StateObject private var offerService = FirebaseOfferService.shared
@@ -685,7 +708,8 @@ struct InfluencerJoinedOfferCard: View {
                 
                 Divider()
                 
-                // Action Buttons
+                // Action Buttons (UPDATED SECTION)
+                // Action Buttons (FIXED ALIGNMENT)
                 HStack(spacing: 12) {
                     // QR Code Button
                     Button(action: {
@@ -695,18 +719,18 @@ struct InfluencerJoinedOfferCard: View {
                     }) {
                         HStack(spacing: 6) {
                             Image(systemName: isRedeemed ? "checkmark.circle" : "qrcode")
+                                .font(.system(size: 14))
                             Text(isRedeemed ? "Redeemed" : "Show QR")
-                                .font(.caption)
-                                .fontWeight(.semibold)
+                                .font(.system(size: 12, weight: .semibold))
                         }
                         .foregroundColor(isRedeemed ? .gray : .white)
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(
                             RoundedRectangle(cornerRadius: 20)
                                 .fill(
                                     isRedeemed ?
-                                    LinearGradient(colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.3)],
+                                    LinearGradient(colors: [Color.gray.opacity(0.3)],
                                                   startPoint: .leading,
                                                   endPoint: .trailing) :
                                     LinearGradient(colors: [.purple, .pink],
@@ -716,19 +740,32 @@ struct InfluencerJoinedOfferCard: View {
                         )
                     }
                     .disabled(isRedeemed)
-                    .onTapGesture {
-                        if !isRedeemed {
-                            showQRCode = true
+                    
+                    // Complete Button
+                    Button(action: {
+                        showCompletionView = true
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.seal")
+                                .font(.system(size: 14))
+                            Text("Complete")
+                                .font(.system(size: 12, weight: .semibold))
                         }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(
+                                    LinearGradient(colors: [.green, .mint],
+                                                  startPoint: .leading,
+                                                  endPoint: .trailing)
+                                )
+                        )
                     }
+                    .disabled(isRedeemed)
                     
-                    Spacer()
-                    
-                    // View Details
-                    Text("View Details →")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.purple)
+    
                 }
             }
             .padding()
@@ -756,6 +793,9 @@ struct InfluencerJoinedOfferCard: View {
                 OfferQRCodeView(offer: offer, influencer: influencer)
             }
         }
+        .sheet(isPresented: $showCompletionView) {
+            OfferCompletionView(offer: offer)
+        }
     }
     
     private func checkRedemptionStatus() {
@@ -770,8 +810,6 @@ struct InfluencerJoinedOfferCard: View {
         }
     }
 }
-
-
 // MARK: - Empty Joined Offers State
 struct EmptyJoinedOffersState: View {
     var body: some View {

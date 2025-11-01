@@ -17,10 +17,83 @@ class FirebaseInfluencerService: ObservableObject {
     private var currentInfluencerDocumentId: String?
     
     private init() {
-        // Auto-create random influencer on init
-        createRandomInfluencer()
+        // NOTE: No longer auto-creating random influencer
+        // Users must go through signup flow
     }
-    
+
+    // MARK: - Create Influencer (Real User)
+    func createInfluencer(
+        userName: String,
+        email: String,
+        instagramFollowers: Int,
+        tiktokFollowers: Int,
+        youtubeSubscribers: Int,
+        categories: [String],
+        contentTypes: [String],
+        reviewPlatforms: [String],
+        city: String,
+        state: String,
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
+        isLoading = true
+
+        let influencerId = UUID().uuidString
+        let totalReach = instagramFollowers + tiktokFollowers + youtubeSubscribers
+
+        // Calculate engagement metrics based on follower count
+        let engagementRate = Double.random(in: 2.5...8.5)
+        let avgLikes = Int(Double(totalReach) * (engagementRate / 100) * 0.8)
+        let avgComments = Int(Double(avgLikes) * 0.1)
+        let avgViews = totalReach * Int.random(in: 2...5)
+
+        // Create influencer data
+        let influencerData: [String: Any] = [
+            "influencerId": influencerId,
+            "userName": userName,
+            "email": email,
+            "profileImageURL": "https://i.pravatar.cc/300?u=\(userName)",
+            "instagramFollowers": instagramFollowers,
+            "tiktokFollowers": tiktokFollowers,
+            "youtubeSubscribers": youtubeSubscribers,
+            "totalReach": totalReach,
+            "averageEngagementRate": engagementRate,
+            "averageLikes": avgLikes,
+            "averageComments": avgComments,
+            "averageViews": avgViews,
+            "totalReviews": 0,
+            "completedOffers": 0,
+            "joinedOffers": 0,
+            "reviewPlatforms": reviewPlatforms,
+            "categories": categories,
+            "contentTypes": contentTypes,
+            "city": city,
+            "state": state,
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "joinedDate": Timestamp(),
+            "isVerified": totalReach > 10000,
+            "isActive": true,
+            "lastActive": Timestamp()
+        ]
+
+        db.collection(influencersCollection).addDocument(data: influencerData) { [weak self] error in
+            DispatchQueue.main.async {
+                self?.isLoading = false
+                if let error = error {
+                    print("❌ Error creating influencer: \(error.localizedDescription)")
+                    completion(.failure(error))
+                } else {
+                    print("✅ New influencer created: \(userName)")
+                    print("📱 Followers: Instagram \(instagramFollowers), TikTok \(tiktokFollowers), YouTube \(youtubeSubscribers)")
+
+                    // Load the created influencer
+                    self?.loadInfluencerByEmail(email: email)
+                    completion(.success(()))
+                }
+            }
+        }
+    }
+
     // MARK: - Create Random Influencer
     func createRandomInfluencer() {
         isLoading = true
@@ -259,12 +332,31 @@ class FirebaseInfluencerService: ObservableObject {
             completion(false)
             return
         }
-        
+
         db.collection(reviewsCollection)
             .whereField("influencerId", isEqualTo: influencer.influencerId)
             .whereField("offerId", isEqualTo: offerId)
             .getDocuments { snapshot, _ in
                 completion(!(snapshot?.documents.isEmpty ?? true))
             }
+    }
+
+    // MARK: - Update Influencer Profile
+    func updateInfluencerProfile(documentId: String, updates: [String: Any], completion: @escaping (Result<Void, Error>) -> Void) {
+        db.collection(influencersCollection).document(documentId).updateData(updates) { [weak self] error in
+            if let error = error {
+                print("❌ Error updating influencer profile: \(error.localizedDescription)")
+                completion(.failure(error))
+            } else {
+                print("✅ Influencer profile updated successfully")
+
+                // Reload the current influencer
+                if let email = self?.currentInfluencer?.email {
+                    self?.loadInfluencerByEmail(email: email)
+                }
+
+                completion(.success(()))
+            }
+        }
     }
 }
